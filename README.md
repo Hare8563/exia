@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://github.com/kokushin/exia/assets/4176300/f339f967-712e-4967-9de9-52962d8d74f6" width="240" alt="©Proxima Beta Pte. Limited ©SHIFT UP CORP.">
   <h1>Exia</h1>
-  <b>Next.js and Electron based novel game engine.<br>
+  <b>Vite and Tauri based novel game engine.<br>
 Inspired by the UX/UI of “勝利の女神:NIKKE”.</b>
   <br>
   <br>
@@ -16,9 +16,9 @@ Exia は現在開発中です。全体の進捗は 30% くらいです。<br>
 
 <img src="https://github.com/kokushin/exia/assets/4176300/cbb02a61-1ced-49c8-8d8d-8b099cbf319c" width="640" alt="">
 
-Exia(エクシア)は、Next.js(TypeScript)+Electron ベースのビジュアルノベルゲームエンジンです。<br>
+Exia(エクシア)は、Tauri + Vite (React + TypeScript) + Zustand ベースのビジュアルノベルゲームエンジンです。<br>
 基本的なノベルゲームの機能を搭載し、JSX や CSS を用いて柔軟に UI をスタイリングすることが可能です。<br>
-レスポンシブ対応しているため、モバイル向けのアプリケーションとしても出力できます。
+Tauri を採用しているため、軽量で高速なデスクトップアプリケーションとして動作します。
 
 将来的には、専用 GUI エディタや ChatGPT など生成 AI との連携機能も提供予定です！
 
@@ -58,7 +58,7 @@ Google Chrome での閲覧を推奨します。
   - [x] ログ
   - [ ] コンフィグ
 - その他
-  - [x] Windows/MacOS 向けアプリケーションコンパイル
+  - [x] Windows/MacOS 向けアプリケーションコンパイル (Tauri)
   - [ ] 画面録画・書き出し機能
   - [x] VOICEVOX 連携
   - [ ] 多言語対応(英語/中国語)
@@ -73,6 +73,7 @@ Google Chrome での閲覧を推奨します。
 ### 動作環境
 
 - Node.js v20x
+- Rust (Tauri のビルドに必要)
 
 ### 手順
 
@@ -91,16 +92,16 @@ cd exia
 3. 必要なモジュールをインストール
 
 ```bash
-npm install
+pnpm install
 ```
 
 4. 開発用のサーバを起動
 
 ```bash
-npm run dev
+pnpm run tauri dev
 ```
 
-5. Electron アプリケーションが起動します。<br>
+5. Tauri アプリケーションが起動します。<br>
    終了したい場合は、アプリケーションを閉じるか、Ctrl+C でローカルサーバを閉じてください。
 
 ### 画像やシナリオを変更したい場合
@@ -109,19 +110,19 @@ npm run dev
 
 #### 背景画像
 
-`renderer/public/images/backgrounds` の bg_01.png を上書きしてください。
+`public/images/backgrounds` の画像を上書きしてください。
 
 #### キャラクター画像
 
-`renderer/public/images/characters` の chara_01.png を上書きしてください。
+`public/images/characters` の画像を上書きしてください。
 
 #### カットイン画像
 
-`renderer/public/images/cut_ins` の cut_01.png を上書きしてください。
+`public/images/cut_ins` の画像を上書きしてください。
 
 #### シナリオ
 
-`renderer/src/scenarios/S_000.json` をエディタで開き、編集して保存してください。
+`src/scenarios/S_000.json` をエディタで開き、編集して保存してください。
 
 ```ts
 // 構成と型の参考
@@ -268,19 +269,19 @@ cd editor
 2. 必要なモジュールをインストールします（初回のみ）。
 
 ```bash
-npm install
+pnpm install
 ```
 
 3. エディターサーバーを起動します。
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 または、プロジェクトのルートディレクトリで下記コマンドを実行します。
 
 ```bash
-npm run dev:editor
+pnpm run dev:editor
 ```
 
 ブラウザで `http://localhost:3001` にアクセスすると、シナリオエディターが表示されます。
