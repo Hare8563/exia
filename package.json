@@ -14,7 +14,9 @@
     "tauri": "tauri",
     "clean": "rimraf dist src-tauri/target",
     "type-check": "tsc --noEmit",
-    "build-voice": "node scripts/generateVoices.js"
+    "build-voice": "node scripts/generateVoices.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -41,6 +43,7 @@
     "rimraf": "^3.0.2",
     "typescript": "^5.0.0",
     "vite": "^5.4.11",
-    "vite-tsconfig-paths": "^4.3.2"
+    "vite-tsconfig-paths": "^4.3.2",
+    "vitest": "^4.1.1"
   }
 }
