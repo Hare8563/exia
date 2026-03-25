@@ -8,6 +8,7 @@ interface ScenarioState extends Scenario {
   isFetched: boolean
   currentFilePath: string
   flags: Record<string, FlagValue>
+  currentBgmFile: string | undefined
 }
 
 interface ScenarioStore {
@@ -28,6 +29,7 @@ export const useScenarioStore = create<ScenarioStore>((set) => ({
     isFetched: false,
     currentFilePath: 'scenarios/main',
     flags: {},
+    currentBgmFile: undefined,
   },
   setScenario: (data) =>
     set((state) => ({
