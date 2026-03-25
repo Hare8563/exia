@@ -23,11 +23,19 @@ Redesign the scenario loading system to:
 
 | Pattern | Meaning |
 |---------|---------|
-| `./::label` | Label in the current file |
-| `./scene_2::start` | `scene_2.json` in the current directory, label `start` |
-| `../main::entry` | `main.json` in the parent directory, label `entry` |
+| `main::entry` | `public/scenarios/main.json`, label `entry` (absolute from root) |
+| `scenes/scene_01::scene` | `public/scenarios/scenes/scene_01.json`, label `scene` (absolute from root) |
+| `./::label` | Current file, label `label` (relative) |
+| `./scene_2::start` | `scene_2.json` in the current directory, label `start` (relative) |
+| `../main::hub` | `main.json` in the parent directory, label `hub` (relative) |
 
-The separator between file path and label is `::`. The file path omits the `.json` extension. Paths are resolved relative to `currentFilePath` stored in the scenario store.
+The separator between file path and label is `::`. The file path omits the `.json` extension.
+
+**Resolution rules:**
+- If the path before `::` starts with `./` or `../`: resolve relative to the directory of `currentFilePath`.
+- Otherwise: resolve as an absolute path from `public/scenarios/` root (i.e. prepend `scenarios/`).
+
+The `./` prefix on a same-directory reference is required to distinguish relative paths from absolute ones.
 
 ### TypeScript Type Definitions
 
@@ -199,6 +207,8 @@ function resolveJumpTo(
 ```
 
 Examples:
+- `resolveJumpTo("main::entry", "scenarios/chapter1/scene_1")` → `{ filePath: "scenarios/main", labelId: "entry" }`
+- `resolveJumpTo("scenes/scene_01::scene", "scenarios/chapter1/scene_1")` → `{ filePath: "scenarios/scenes/scene_01", labelId: "scene" }`
 - `resolveJumpTo("./::end", "scenarios/chapter1/scene_1")` → `{ filePath: "scenarios/chapter1/scene_1", labelId: "end" }`
 - `resolveJumpTo("./scene_2::start", "scenarios/chapter1/scene_1")` → `{ filePath: "scenarios/chapter1/scene_2", labelId: "start" }`
 - `resolveJumpTo("../main::hub", "scenarios/chapter1/scene_1")` → `{ filePath: "scenarios/main", labelId: "hub" }`
