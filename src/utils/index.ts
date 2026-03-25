@@ -1,9 +1,9 @@
-import { ScenarioLine } from "@/types";
+import { ScenarioLine } from '@/types'
 
-// 現在フォーカスしているキャラクターのindexを取得
-export const getCurrentCharacterIndex = (lines: ScenarioLine[], currentLineIndex: number) => {
-  if (!lines[currentLineIndex] || lines[currentLineIndex].character === undefined) {
-    return -1;
-  }
-  return lines[currentLineIndex].character!.index;
-};
+export const getCurrentCharacterIndex = (lines: ScenarioLine[], currentLineIndex: number): number => {
+  const line = lines[currentLineIndex]
+  if (!line) return -1
+  if (line.type === 'flag' || line.type === 'jump' || line.type === 2) return -1
+  if (line.character === undefined) return -1
+  return line.character.index
+}
