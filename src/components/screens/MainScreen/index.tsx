@@ -1,45 +1,53 @@
-import React, { useEffect } from "react";
-import { useScenarioStore } from "@/states/scenarioStore";
-import { getCurrentCharacterIndex } from "@/utils";
-import type { DisplayLine, Scenario } from "@/types";
-import { Message } from "@/components/modules/Message";
-import { Navigation } from "@/components/modules/Navigation";
-import { Loading } from "@/components/modules/Loading";
-import { Voice } from "@/components/modules/Voice";
-import { Log } from "@/components/modules/Log";
-import { ThreeCanvas } from "@/components/ThreeCanvas";
+import React, { useEffect } from 'react'
+import { useScenarioStore } from '@/states/scenarioStore'
+import { getCurrentCharacterIndex } from '@/utils'
+import { loadScenario } from '@/utils/scenarioLoader'
+import { DisplayLine } from '@/types'
+import { Message } from '@/components/modules/Message'
+import { Navigation } from '@/components/modules/Navigation'
+import { Loading } from '@/components/modules/Loading'
+import { Voice } from '@/components/modules/Voice'
+import { Log } from '@/components/modules/Log'
+import { ThreeCanvas } from '@/components/ThreeCanvas'
 
 export const MainScreen: React.FC = () => {
-  const { scenario, setScenario } = useScenarioStore();
+  const { scenario, setScenario } = useScenarioStore()
 
-  // シナリオデータを動的にインポート
   useEffect(() => {
-    const loadScenario = async () => {
+    const loadEntry = async () => {
+      if (scenario.isFetched) return
+
       try {
-        const mockScenarioData = await import("@/scenarios/S_000.json");
-        const mockScenario = {
-          ...mockScenarioData,
-          logs: [], // logsプロパティを追加
-        } as Scenario;
-        if (!scenario.isFetched) {
-          setScenario({
-            ...scenario,
-            id: mockScenario.id,
-            backgroundFile: mockScenario.backgroundFile,
-            lines: mockScenario.lines,
-            characters: mockScenario.characters,
-            currentCharacterIndex: getCurrentCharacterIndex(mockScenario.lines, mockScenario.currentLineIndex),
-            currentLineIndex: mockScenario.currentLineIndex,
-            currentLine: mockScenario.lines[mockScenario.currentLineIndex] as DisplayLine | undefined,
-            isFetched: true,
-          });
+        const loaded = await loadScenario('scenarios/main')
+        const entryIndex = loaded.lines.findIndex((l) => l.id === 'entry')
+
+        if (entryIndex === -1) {
+          throw new Error(
+            "[Exia] Failed to load entry point: scenarios/main.json must exist and contain a line with id: 'entry'."
+          )
         }
+
+        // Do NOT spread scenario here — Zustand's setScenario merges with existing state.
+        // Spreading a stale scenario snapshot would overwrite fields changed elsewhere.
+        setScenario({
+          id: loaded.id,
+          backgroundFile: loaded.backgroundFile,
+          bgmFile: loaded.bgmFile,
+          lines: loaded.lines,
+          characters: loaded.characters,
+          currentFilePath: 'scenarios/main',
+          currentCharacterIndex: getCurrentCharacterIndex(loaded.lines, entryIndex),
+          currentLineIndex: entryIndex,
+          currentLine: loaded.lines[entryIndex] as DisplayLine,
+          isFetched: true,
+        })
       } catch (error) {
-        console.error("Failed to load scenario:", error);
+        console.error(error)
       }
-    };
-    loadScenario();
-  }, [scenario.isFetched, setScenario]);
+    }
+
+    loadEntry()
+  }, [scenario.isFetched, setScenario])
 
   return (
     <>
@@ -50,5 +58,5 @@ export const MainScreen: React.FC = () => {
       <Log />
       <Loading />
     </>
-  );
-};
+  )
+}
