@@ -16,12 +16,18 @@ Add a `voice` field to scenario lines so that pre-recorded audio files in `publi
 
 ### New field on NarrationLine and DialogueLine
 
+DialogueLine example (type 1, with character):
 ```json
 { "type": 1, "character": { "index": 0 }, "text": "こんにちは！", "voice": "n0001.wav" }
 ```
 
+NarrationLine example (type 0, no character required):
+```json
+{ "type": 0, "text": "静寂が続いた。", "voice": "n0002.wav" }
+```
+
 - `voice` (optional `string`): filename of the audio file under `public/sounds/voices/`. Extension is included (e.g. `"n0001.wav"`).
-- Omitting `voice` means no audio plays for that line.
+- Omitting `voice` means no audio plays for that line. When two consecutive lines both omit `voice`, nothing plays for either — no fallback is needed.
 - `ChoiceLine` (type 2) does not support `voice`.
 
 ### TypeScript type changes
@@ -33,6 +39,8 @@ voice?: string;
 // DialogueLine — add:
 voice?: string;
 ```
+
+`ScenarioLogEntry` is defined as `DisplayLine & { character?: CharacterInfo }`, so it will inherit `voice?` automatically. This is intentional; the log UI does not render audio and ignores the field.
 
 ---
 
@@ -46,11 +54,20 @@ voice?: string;
 
 Use React's `key` prop on the `<audio>` element set to the `voice` filename. When `key` changes, React unmounts the old element (stopping playback) and mounts a new one (starting the new audio). When `voice` is `undefined`, no `<audio>` element is rendered.
 
+**Note:** The existing Voice component uses the path `/voices/{speakerId}.mp3`, which is a pre-existing bug (the `sounds/` segment is missing). Do not copy that path. The correct base path for the new feature is `/sounds/voices/{voice}`.
+
 ---
 
 ## VOICEVOX coexistence
 
-The existing VOICEVOX mechanism (driven by `character.speakerId` and `CONFIG.VOICEVOX`) is left unchanged. When a line has a `voice` field, the line-level `voice` takes precedence and VOICEVOX does not play for that line. VOICEVOX remains off by default (`CONFIG.VOICEVOX: false`).
+The existing VOICEVOX mechanism (driven by `character.speakerId` and `CONFIG.VOICEVOX`) is left unchanged. The precedence check lives inside the Voice component:
+
+- If `currentLine.voice` is set, render only the file-based `<audio>` element. Do **not** render the VOICEVOX `<audio>` element, regardless of the value of `CONFIG.VOICEVOX`.
+- If `currentLine.voice` is absent and `CONFIG.VOICEVOX` is true and `speakerId` is present, render the VOICEVOX `<audio>` element as before.
+
+This prevents double-audio if VOICEVOX is ever enabled alongside the new voice field.
+
+VOICEVOX remains off by default (`CONFIG.VOICEVOX: false`).
 
 ---
 
