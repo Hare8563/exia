@@ -30,11 +30,13 @@
     {
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0001.wav",
       "text": "こんにちは！私が渚です。Exiaの機能を順に説明していきましょう。"
     },
     {
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0002.wav",
       "text": "まず、この画面のようにキャラクターがセリフを話すことができます。<br>これは「ダイアログ」モードと呼ばれています。"
     },
     {
@@ -44,16 +46,19 @@
     {
       "character": { "index": 1 },
       "type": 1,
+      "voice": "r0001.wav",
       "text": "私は凛です！複数のキャラクターが会話することもできますね。"
     },
     {
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0003.wav",
       "text": "その通りです。次に特殊な表現方法を紹介します。"
     },
     {
       "character": { "index": 1 },
       "type": 1,
+      "voice": "r0002.wav",
       "text": "テキストは<br>このように改行したり、<br><span style=\"font-size:24px\">サイズを変えたり</span>することもできます。"
     },
     {
@@ -65,6 +70,7 @@
       "cutIn": { "imageFile": "cut_01.webp" },
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0004.wav",
       "text": "カットインが表示されている状態でもキャラクターが会話できますね。"
     },
     {
@@ -80,6 +86,7 @@
       "cutIn": { "imageFile": "cg_01.webp", "isFullScreen": true },
       "character": { "index": 1 },
       "type": 1,
+      "voice": "r0003.wav",
       "text": "CGの上にキャラクターのセリフを表示することもできます。物語の臨場感が増しますね！"
     },
     {
@@ -90,6 +97,7 @@
     {
       "character": { "index": 0, "name": "渚", "imageFile": "chara_01.webp" },
       "type": 1,
+      "voice": "n0005.wav",
       "text": "そして最後に、Exiaの重要な機能である「選択肢」を紹介します。<br>ユーザーは物語の進行を選ぶことができます。"
     },
 
@@ -112,11 +120,13 @@
       "id": "text_style_choice",
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0006.wav",
       "text": "テキストスタイルについて説明します。Exiaでは、HTMLタグを使って<span style=\"color:red\">色</span>や<span style=\"font-weight:bold\">太字</span>などのスタイルを適用できます。"
     },
     {
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0007.wav",
       "text": "また、テキストの表示速度も調整できます。これはゲームの雰囲気作りに重要な要素です。",
       "jumpTo": "./::choice_end"
     },
@@ -125,11 +135,13 @@
       "id": "character_choice",
       "character": { "index": 1 },
       "type": 1,
+      "voice": "r0004.wav",
       "text": "キャラクター表示について説明します。キャラクターの立ち絵は自由に切り替えることができます。"
     },
     {
       "character": { "index": 1, "imageFile": "chara_02.webp" },
       "type": 1,
+      "voice": "r0005.wav",
       "text": "また、キャラクターの名前を途中で変更したり、表情を変えたりすることも可能です。ストーリーの展開に合わせて使い分けましょう。",
       "jumpTo": "./::choice_end"
     },
@@ -154,6 +166,7 @@
       "id": "want_branch",
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0008.wav",
       "text": "わかりました！それでは...",
       "if": {
         "flag": "second_choice",
@@ -167,16 +180,19 @@
       "id": "choice_mechanism",
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0009.wav",
       "text": "選択肢の仕組みについて説明します。各選択肢には「jumpTo」があり、選択後にジャンプする先のIDを指定します。"
     },
     {
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0010.wav",
       "text": "フラグ（type: flag）でフラグをセットし、「if」プロパティで条件分岐できます。今体験していただいた機能がまさにそれです。"
     },
     {
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0011.wav",
       "text": "さらに「type: jump」を使えば別のシナリオファイルへ移動できます。このチュートリアルの最後でも使いますよ！",
       "jumpTo": "./::tutorial_end"
     },
@@ -185,11 +201,13 @@
       "id": "tutorial_end",
       "character": { "index": 0, "name": "渚", "imageFile": "chara_01.webp" },
       "type": 1,
+      "voice": "n0012.wav",
       "text": "以上でExiaの基本機能紹介を終わります。実際にゲームを作る際は、これらの機能を組み合わせて豊かなストーリーテリングを実現してください。"
     },
     {
       "character": { "index": 1 },
       "type": 1,
+      "voice": "r0006.wav",
       "text": "お疲れ様でした！ちなみに、最初に選んだのは..."
     },
     {
@@ -207,6 +225,7 @@
       "id": "ending_text",
       "character": { "index": 0 },
       "type": 1,
+      "voice": "n0013.wav",
       "text": "テキストスタイルでしたね。文章表現へのこだわりを感じます！",
       "jumpTo": "./::finale"
     },
@@ -214,6 +233,7 @@
       "id": "ending_chara",
       "character": { "index": 1 },
       "type": 1,
+      "voice": "r0007.wav",
       "text": "キャラクター表示でしたね。演出へのこだわりを感じます！",
       "jumpTo": "./::finale"
     },
