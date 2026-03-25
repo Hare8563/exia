@@ -62,6 +62,7 @@ export type NarrationLine = {
   jumpTo?: string;
   if?: ScenarioCondition;
   voice?: string;
+  bgmFile?: string;
 };
 
 export type DialogueLine = {
@@ -74,6 +75,7 @@ export type DialogueLine = {
   jumpTo?: string;
   if?: ScenarioCondition;
   voice?: string;
+  bgmFile?: string;
 };
 
 export type ChoiceLine = {
