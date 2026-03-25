@@ -1,22 +1,24 @@
-import { create } from 'zustand';
-import { Scenario, ScenarioLine, ScenarioLogEntry } from "@/types";
+import { create } from 'zustand'
+import { DisplayLine, FlagValue, Scenario, ScenarioLogEntry } from '@/types'
 
 interface ScenarioState extends Scenario {
-  currentCharacterIndex: number;
-  currentLine: ScenarioLine | undefined;
-  logs: ScenarioLogEntry[];
-  isFetched: boolean;
+  currentCharacterIndex: number
+  currentLine: DisplayLine | undefined
+  logs: ScenarioLogEntry[]
+  isFetched: boolean
+  currentFilePath: string
+  flags: Record<string, FlagValue>
 }
 
 interface ScenarioStore {
-  scenario: ScenarioState;
-  setScenario: (data: Partial<ScenarioState> | ((prev: ScenarioState) => ScenarioState)) => void;
+  scenario: ScenarioState
+  setScenario: (data: Partial<ScenarioState> | ((prev: ScenarioState) => ScenarioState)) => void
 }
 
 export const useScenarioStore = create<ScenarioStore>((set) => ({
   scenario: {
-    id: "",
-    backgroundFile: "bg_01.webp",
+    id: '',
+    backgroundFile: 'bg_01.webp',
     characters: [],
     lines: [],
     currentCharacterIndex: -1,
@@ -24,8 +26,14 @@ export const useScenarioStore = create<ScenarioStore>((set) => ({
     currentLine: undefined,
     logs: [],
     isFetched: false,
+    currentFilePath: 'scenarios/main',
+    flags: {},
   },
-  setScenario: (data) => set((state) => ({
-    scenario: typeof data === 'function' ? data(state.scenario) : { ...state.scenario, ...data }
-  })),
-}));
+  setScenario: (data) =>
+    set((state) => ({
+      scenario:
+        typeof data === 'function'
+          ? data(state.scenario)
+          : { ...state.scenario, ...data },
+    })),
+}))
