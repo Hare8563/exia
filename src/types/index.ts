@@ -61,6 +61,7 @@ export type NarrationLine = {
   backgroundFile?: string;
   jumpTo?: string;
   if?: ScenarioCondition;
+  voice?: string;
 };
 
 export type DialogueLine = {
@@ -72,6 +73,7 @@ export type DialogueLine = {
   backgroundFile?: string;
   jumpTo?: string;
   if?: ScenarioCondition;
+  voice?: string;
 };
 
 export type ChoiceLine = {
