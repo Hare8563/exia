@@ -55,12 +55,12 @@ export const Message: React.FC = () => {
 
   return (
     <div className="absolute bottom-0 left-0 z-40 w-full h-full pointer-events-none">
-      <Layout
-        characterName={getCurrentCharacterName()}
-        showArrowIcon={isShowArrowIcon}
-        isAutoPlay={navigation.isAutoPlay}
-      >
-        <div className="w-full h-full pointer-events-auto cursor-pointer" onClick={handleNext}>
+      <div className="pointer-events-auto cursor-pointer" onClick={handleNext}>
+        <Layout
+          characterName={getCurrentCharacterName()}
+          showArrowIcon={isShowArrowIcon}
+          isAutoPlay={navigation.isAutoPlay}
+        >
           <MessageTypewriter
             navigation={navigation}
             text={scenario.currentLine.text}
@@ -68,8 +68,8 @@ export const Message: React.FC = () => {
             setIsReading={setIsReading}
             setTypewriterInstance={setTypewriterInstance}
           />
-        </div>
-      </Layout>
+        </Layout>
+      </div>
 
       {/* 選択肢の表示 */}
       {isShowingChoices && scenario.currentLine.choices && (

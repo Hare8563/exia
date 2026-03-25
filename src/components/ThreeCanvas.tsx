@@ -6,7 +6,7 @@ import { CutIn3D } from './modules/CutIn/CutIn3D';
 
 export const ThreeCanvas: React.FC = () => {
   return (
-    <div className="absolute inset-0 z-0">
+    <div className="absolute inset-0 z-0" style={{ pointerEvents: 'none' }}>
       <Canvas
         camera={{ position: [0, 0, 5], fov: 45 }}
         gl={{ antialias: true }}
