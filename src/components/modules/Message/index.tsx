@@ -43,7 +43,7 @@ export const Message: React.FC = () => {
     }
 
     if (!isScenarioEnd()) {
-      goToNextLine();
+      void goToNextLine()
     }
   };
 
