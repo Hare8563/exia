@@ -1,0 +1,27 @@
+{
+  "id": "S_MAIN",
+  "backgroundFile": "bg_01.webp",
+  "characters": [
+    {
+      "index": 0,
+      "name": "渚",
+      "imageFile": "chara_01.webp",
+      "isShow": true,
+      "speakerId": 3
+    },
+    {
+      "index": 1,
+      "name": "凛",
+      "imageFile": "chara_02.webp",
+      "isShow": true,
+      "speakerId": 2
+    }
+  ],
+  "lines": [
+    {
+      "id": "entry",
+      "type": 0,
+      "text": "ようこそ、Exiaノベルゲームエンジンへ！"
+    }
+  ]
+}
