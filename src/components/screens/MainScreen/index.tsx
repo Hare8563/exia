@@ -7,6 +7,7 @@ import { Message } from '@/components/modules/Message'
 import { Navigation } from '@/components/modules/Navigation'
 import { Loading } from '@/components/modules/Loading'
 import { Voice } from '@/components/modules/Voice'
+import { Bgm } from '@/components/modules/Bgm'
 import { Log } from '@/components/modules/Log'
 import { ThreeCanvas } from '@/components/ThreeCanvas'
 
@@ -27,6 +28,9 @@ export const MainScreen: React.FC = () => {
           )
         }
 
+        const entryLine = loaded.lines[entryIndex] as { bgmFile?: string }
+        const initialBgm = entryLine.bgmFile ?? loaded.bgmFile ?? undefined
+
         // Do NOT spread scenario here — Zustand's setScenario merges with existing state.
         // Spreading a stale scenario snapshot would overwrite fields changed elsewhere.
         setScenario({
@@ -40,6 +44,7 @@ export const MainScreen: React.FC = () => {
           currentLineIndex: entryIndex,
           currentLine: loaded.lines[entryIndex] as DisplayLine,
           isFetched: true,
+          currentBgmFile: initialBgm,
         })
       } catch (error) {
         console.error(error)
@@ -52,6 +57,7 @@ export const MainScreen: React.FC = () => {
   return (
     <>
       <Voice />
+      <Bgm />
       <ThreeCanvas />
       <Message />
       <Navigation />
