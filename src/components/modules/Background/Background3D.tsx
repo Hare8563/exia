@@ -7,7 +7,9 @@ export const Background3D: React.FC = () => {
   const { scenario } = useScenarioStore();
   const { viewport } = useThree();
 
-  const bgFile = scenario.currentLine?.backgroundFile || scenario.backgroundFile;
+  const currentLine = scenario.currentLine;
+  const lineBgFile = currentLine && currentLine.type !== 2 ? currentLine.backgroundFile : undefined;
+  const bgFile = lineBgFile || scenario.backgroundFile;
   const texture = useTexture(bgFile ? `/images/backgrounds/${bgFile}` : '/images/backgrounds/bg_01.webp');
 
   // 計算してobject-coverのような挙動を実現

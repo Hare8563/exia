@@ -72,7 +72,7 @@ export const Message: React.FC = () => {
       </div>
 
       {/* 選択肢の表示 */}
-      {isShowingChoices && scenario.currentLine.choices && (
+      {isShowingChoices && scenario.currentLine && scenario.currentLine.type === 2 && scenario.currentLine.choices && (
         <Choice choices={scenario.currentLine.choices} onSelect={handleChoiceSelect} />
       )}
     </div>

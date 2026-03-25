@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useScenarioStore } from "@/states/scenarioStore";
 import { getCurrentCharacterIndex } from "@/utils";
-import type { Scenario } from "@/types";
+import type { DisplayLine, Scenario } from "@/types";
 import { Message } from "@/components/modules/Message";
 import { Navigation } from "@/components/modules/Navigation";
 import { Loading } from "@/components/modules/Loading";
@@ -30,7 +30,7 @@ export const MainScreen: React.FC = () => {
             characters: mockScenario.characters,
             currentCharacterIndex: getCurrentCharacterIndex(mockScenario.lines, mockScenario.currentLineIndex),
             currentLineIndex: mockScenario.currentLineIndex,
-            currentLine: mockScenario.lines[mockScenario.currentLineIndex],
+            currentLine: mockScenario.lines[mockScenario.currentLineIndex] as DisplayLine | undefined,
             isFetched: true,
           });
         }

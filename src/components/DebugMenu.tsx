@@ -1,7 +1,10 @@
 import React from "react";
 import { useScenarioStore } from "@/states/scenarioStore";
 import { useNavigationStore } from "@/states/navigationStore";
-import mockScenario from "@/scenarios/S_000.json";
+import rawMockScenario from "@/scenarios/S_000.json";
+import type { DisplayLine, Scenario } from "@/types";
+
+const mockScenario = rawMockScenario as unknown as Scenario;
 
 export const DebugMenu: React.FC = () => {
   const { scenario, setScenario } = useScenarioStore();
@@ -21,7 +24,7 @@ export const DebugMenu: React.FC = () => {
               ...mockScenario,
               currentCharacterIndex: -1,
               currentLineIndex: 0,
-              currentLine: scenario.lines[0],
+              currentLine: scenario.lines[0] as DisplayLine | undefined,
             });
             setNavigation({
               ...navigation,
@@ -34,7 +37,7 @@ export const DebugMenu: React.FC = () => {
       </li>
       <li>---</li>
       <li>currentCharacterIndex: {scenario.currentCharacterIndex}</li>
-      {mockScenario.characters
+      {(mockScenario.characters ?? [])
         .filter((character) => character.isShow)
         .map((character, i) => (
           <li key={i}>

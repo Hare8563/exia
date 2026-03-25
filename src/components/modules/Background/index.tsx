@@ -3,6 +3,8 @@ import { useScenarioStore } from "@/states/scenarioStore";
 
 export const Background: React.FC = () => {
   const { scenario } = useScenarioStore();
+  const currentLine = scenario.currentLine;
+  const lineBackgroundFile = currentLine && currentLine.type !== 2 ? currentLine.backgroundFile : undefined;
 
   return (
     <div className="absolute top-0 left-0 z-0 w-full h-full bg-black overflow-hidden pointer-events-none">
@@ -14,9 +16,9 @@ export const Background: React.FC = () => {
             className="absolute top-0 left-0 w-full h-full object-cover"
           />
         )}
-        {scenario.currentLine?.backgroundFile && (
+        {lineBackgroundFile && (
           <img
-            src={`/images/backgrounds/${scenario.currentLine.backgroundFile}`}
+            src={`/images/backgrounds/${lineBackgroundFile}`}
             alt="Background"
             className="absolute top-0 left-0 w-full h-full object-cover"
           />

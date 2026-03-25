@@ -73,7 +73,8 @@ const CutInSprite: React.FC<CutInSpriteProps> = ({ cutIn, visible, onHidden }) =
 
 export const CutIn3D: React.FC = () => {
   const { scenario } = useScenarioStore();
-  const cutIn = scenario.currentLine?.cutIn ?? null;
+  const currentLine = scenario.currentLine;
+  const cutIn = (currentLine && currentLine.type !== 2 ? currentLine.cutIn : undefined) ?? null;
 
   // フェードアウト中も旧データを保持するために useState で管理
   const [displayed, setDisplayed] = useState<ScenarioCutIn | null>(cutIn);

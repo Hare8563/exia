@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useScenarioStore } from "@/states/scenarioStore";
 import { useNavigationStore } from "@/states/navigationStore";
-import { CharacterInfo, ScenarioChoice, ScenarioLogEntry } from "@/types";
+import { resolveJumpTo } from "@/utils/jumpToResolver";
+import { loadScenario } from "@/utils/scenarioLoader";
+import { CharacterInfo, DisplayLine, FlagLine, JumpLine, ScenarioChoice, ScenarioCondition, ScenarioLogEntry } from "@/types";
+
+function isDisplayLine(line: unknown): line is DisplayLine {
+  const t = (line as { type?: unknown }).type;
+  return t === 0 || t === 1 || t === 2;
+}
 
 export const useScenarioManager = (isLoaded: boolean) => {
   const { scenario, setScenario } = useScenarioStore();
@@ -9,8 +16,8 @@ export const useScenarioManager = (isLoaded: boolean) => {
   const [isShowingChoices, setIsShowingChoices] = useState(false);
 
   // キャラクター情報を更新する関数
-  const updateCharacterInfo = useCallback((nextLine: any, characters: any[]) => {
-    if (!nextLine.character || nextLine.character.index === undefined) {
+  const updateCharacterInfo = useCallback((nextLine: DisplayLine, characters: NonNullable<typeof scenario.characters>) => {
+    if (nextLine.type === 2 || !nextLine.character || nextLine.character.index === undefined) {
       return characters;
     }
 
@@ -40,8 +47,8 @@ export const useScenarioManager = (isLoaded: boolean) => {
 
   // キャラクター情報をログ用に取得
   const getCharacterInfoForLog = useCallback(
-    (currentLine: any): CharacterInfo | undefined => {
-      if (currentLine?.character && currentLine.character.index !== undefined && scenario.characters) {
+    (currentLine: DisplayLine): CharacterInfo | undefined => {
+      if (currentLine.type !== 2 && currentLine.character && currentLine.character.index !== undefined && scenario.characters) {
         const character = scenario.characters[currentLine.character.index];
         if (character) {
           return {
@@ -81,168 +88,191 @@ export const useScenarioManager = (isLoaded: boolean) => {
     return updatedLogs;
   }, [scenario.logs, scenario.currentLine, getCharacterInfoForLog]);
 
-  // 特定のIDを持つ行のインデックスを見つける
-  const findLineIndexById = useCallback(
-    (id: string): number => {
-      const index = scenario.lines.findIndex((line) => line.id === id);
-      return index !== -1 ? index : scenario.currentLineIndex + 1;
+  const evaluateCondition = useCallback(
+    (condition: ScenarioCondition): string | null => {
+      const value = scenario.flags[condition.flag];
+      let matched = false;
+
+      if ('equals' in condition && condition.equals !== undefined) {
+        matched = value === condition.equals;
+      } else if ('gt' in condition && condition.gt !== undefined) {
+        matched = typeof value === 'number' && value > condition.gt;
+      } else if ('lt' in condition && condition.lt !== undefined) {
+        matched = typeof value === 'number' && value < condition.lt;
+      }
+
+      if (matched) return condition.then;
+      return condition.else ?? null;
     },
-    [scenario.lines, scenario.currentLineIndex]
+    [scenario.flags]
   );
 
-  // 次の選択肢のインデックスを見つける
-  const findNextChoiceIndex = useCallback((): number => {
-    let index = scenario.currentLineIndex + 1;
-    while (index < scenario.lines.length) {
-      if (scenario.lines[index].type === 2) {
-        return index;
-      }
-      index++;
-    }
-    return scenario.lines.length - 1; // 選択肢が見つからない場合は最後の行を返す
-  }, [scenario.lines, scenario.currentLineIndex]);
-
-  // シナリオをスキップする関数
-  const skipToNextChoice = useCallback(() => {
-    // 現在の行をログに追加
-    let updatedLogs = addCurrentLineToLogs();
-
-    // 次の選択肢、または最後の行のインデックスを取得
-    const targetIndex = findNextChoiceIndex();
-    const nextLine = scenario.lines[targetIndex];
-    const updatedCharacters = updateCharacterInfo(nextLine, scenario.characters ? [...scenario.characters] : []);
-
-    // スキップされる範囲のセリフをすべてログに追加
-    for (let i = scenario.currentLineIndex + 1; i < targetIndex; i++) {
-      const skippedLine = scenario.lines[i];
-      // 重複チェック
-      const isAlreadyLogged = updatedLogs.some((log) => log.text === skippedLine.text);
-
-      if (!isAlreadyLogged) {
-        // キャラクター情報を取得してログに追加
-        const characterInfo = getCharacterInfoForLog(skippedLine);
-        updatedLogs.push({
-          ...skippedLine,
-          character: characterInfo,
-        } as ScenarioLogEntry);
-      }
-    }
-
-    // 選択肢に到達したら表示する
-    if (nextLine.type === 2) {
-      setIsShowingChoices(true);
-    }
-
-    // シナリオの状態を更新
-    setScenario({
-      currentLineIndex: targetIndex,
-      currentLine: nextLine,
-      currentCharacterIndex: nextLine.character !== undefined ? nextLine.character.index : -1,
-      characters: updatedCharacters,
-      logs: updatedLogs, // スキップしたセリフを含む更新されたログ
-    });
-
-    // オート再生は停止
-    setNavigation({
-      isAutoPlay: false,
-    });
-
-    return nextLine;
-  }, [
-    findNextChoiceIndex,
-    scenario.lines,
-    scenario.characters,
-    scenario.currentLineIndex,
-    updateCharacterInfo,
-    setScenario,
-    setNavigation,
-    addCurrentLineToLogs,
-    getCharacterInfoForLog,
-  ]);
-
-  // 選択肢が選ばれたときの処理
-  const handleChoiceSelect = useCallback(
-    (choice: ScenarioChoice) => {
-      const targetIndex = findLineIndexById(choice.jumpTo);
-
-      // 選択肢を非表示にする
-      setIsShowingChoices(false);
-
-      // 現在の行をログに追加
-      const updatedLogs = addCurrentLineToLogs();
-
-      // 選択結果をログに追加
-      updatedLogs.push({
-        type: 0,
-        text: `選択: ${choice.text}`,
-      } as ScenarioLogEntry);
-
-      // シナリオの状態を更新してジャンプさせる
-      const nextLine = scenario.lines[targetIndex];
-      const updatedCharacters = updateCharacterInfo(nextLine, scenario.characters ? [...scenario.characters] : []);
-
-      setScenario({
-        currentLineIndex: targetIndex,
-        currentLine: nextLine,
-        currentCharacterIndex: nextLine.character !== undefined ? nextLine.character.index : -1,
-        characters: updatedCharacters,
-        logs: updatedLogs,
-      });
-    },
-    [scenario.lines, scenario.characters, findLineIndexById, updateCharacterInfo, addCurrentLineToLogs, setScenario]
+  const performJumpRef = useRef<(jumpTo: string, keepState?: boolean) => Promise<void>>(
+    async () => {}
   );
+
+  const advanceToDisplayLine = useCallback(
+    async (
+      startIndex: number,
+      lines: typeof scenario.lines,
+      characters: typeof scenario.characters,
+      flags: typeof scenario.flags,
+      overrides?: {
+        id?: string;
+        backgroundFile?: string;
+        bgmFile?: string;
+        currentFilePath?: string;
+      }
+    ) => {
+      let index = startIndex;
+      let currentFlags = { ...flags };
+      let currentChars = characters ? [...characters] : [];
+
+      while (index < lines.length) {
+        const line = lines[index];
+
+        if (line.type === 'flag') {
+          currentFlags = { ...currentFlags, ...(line as FlagLine).set };
+          index++;
+          continue;
+        }
+
+        if (line.type === 'jump') {
+          const jumpLine = line as JumpLine;
+          setScenario((prev) => ({ ...prev, flags: currentFlags }));
+          await performJumpRef.current(jumpLine.to, jumpLine.keepState ?? false);
+          return;
+        }
+
+        if (!isDisplayLine(line)) {
+          index++;
+          continue;
+        }
+
+        const updatedChars = updateCharacterInfo(line, currentChars);
+        const charIndex = (line.type !== 2 && line.character !== undefined) ? line.character.index : -1;
+        setScenario((prev) => ({
+          ...prev,
+          ...overrides,
+          lines,
+          currentLineIndex: index,
+          currentLine: line,
+          currentCharacterIndex: charIndex,
+          characters: updatedChars,
+          flags: currentFlags,
+        }));
+        return;
+      }
+
+      setNavigation({ isAutoPlay: false });
+    },
+    [updateCharacterInfo, setScenario, setNavigation]
+  );
+
+  const performJump = useCallback(
+    async (jumpTo: string, keepState: boolean = false) => {
+      const { filePath, labelId } = resolveJumpTo(jumpTo, scenario.currentFilePath);
+      const isSameFile = filePath === scenario.currentFilePath;
+
+      if (isSameFile) {
+        const targetIndex = scenario.lines.findIndex((l) => l.id === labelId);
+        if (targetIndex === -1) {
+          console.error(`[Exia] Label '${labelId}' not found in ${filePath}.json`);
+          return;
+        }
+        await advanceToDisplayLine(targetIndex, scenario.lines, scenario.characters ?? [], scenario.flags);
+      } else {
+        let loaded;
+        try {
+          loaded = await loadScenario(filePath);
+        } catch (e) {
+          console.error(e);
+          return;
+        }
+
+        const targetIndex = loaded.lines.findIndex((l) => l.id === labelId);
+        if (targetIndex === -1) {
+          console.error(`[Exia] Label '${labelId}' not found in ${filePath}.json`);
+          return;
+        }
+
+        const baseCharacters = keepState ? scenario.characters ?? [] : loaded.characters ?? [];
+        const baseBackground = keepState ? scenario.backgroundFile : loaded.backgroundFile;
+        const baseBgm = keepState ? scenario.bgmFile : loaded.bgmFile;
+
+        await advanceToDisplayLine(
+          targetIndex,
+          loaded.lines,
+          baseCharacters,
+          scenario.flags,
+          {
+            id: loaded.id,
+            backgroundFile: baseBackground,
+            bgmFile: baseBgm,
+            currentFilePath: filePath,
+          }
+        );
+      }
+    },
+    [scenario, advanceToDisplayLine]
+  );
+
+  useEffect(() => {
+    performJumpRef.current = performJump;
+  }, [performJump]);
 
   // 次のセリフに進む
-  const goToNextLine = useCallback(() => {
+  const goToNextLine = useCallback(async () => {
     // 選択肢表示中は、選択されるまで次には進まない
-    if (isShowingChoices) {
-      return false;
-    }
+    if (isShowingChoices) return false;
 
-    // 現在の行がジャンプ命令を持っている場合
-    if (scenario.currentLine?.jumpTo) {
-      const targetIndex = findLineIndexById(scenario.currentLine.jumpTo);
-      const nextLine = scenario.lines[targetIndex];
-      const updatedCharacters = updateCharacterInfo(nextLine, scenario.characters ? [...scenario.characters] : []);
-      const updatedLogs = addCurrentLineToLogs();
+    const currentLine = scenario.currentLine;
+    if (!currentLine) return false;
 
-      setScenario({
-        currentLineIndex: targetIndex,
-        currentLine: nextLine,
-        currentCharacterIndex: nextLine.character !== undefined ? nextLine.character.index : -1,
-        characters: updatedCharacters,
-        logs: updatedLogs,
-      });
-
+    if (currentLine.type !== 2 && currentLine.jumpTo) {
+      await performJump(currentLine.jumpTo);
       return true;
     }
 
-    const nextLineIndex = scenario.currentLineIndex + 1;
+    if (currentLine.type !== 2 && currentLine.if) {
+      const jumpTarget = evaluateCondition(currentLine.if);
+      if (jumpTarget) {
+        await performJump(jumpTarget);
+        return true;
+      }
+    }
 
-    // シナリオの末尾に到達したら処理をスキップ
+    const nextLineIndex = scenario.currentLineIndex + 1;
     if (nextLineIndex > scenario.lines.length - 1) {
-      setNavigation({
-        isAutoPlay: false, // オート再生を終了
-      });
+      setNavigation({ isAutoPlay: false });
       return false;
     }
 
     const nextLine = scenario.lines[nextLineIndex];
-    const updatedCharacters = updateCharacterInfo(nextLine, scenario.characters ? [...scenario.characters] : []);
-    const updatedLogs = addCurrentLineToLogs();
 
-    // 次が選択肢の場合
+    if (nextLine.type === 'flag' || nextLine.type === 'jump') {
+      const updatedLogs = addCurrentLineToLogs();
+      setScenario((prev) => ({ ...prev, logs: updatedLogs }));
+      await advanceToDisplayLine(nextLineIndex, scenario.lines, scenario.characters ?? [], scenario.flags);
+      return true;
+    }
+
+    if (!isDisplayLine(nextLine)) return false;
+
     if (nextLine.type === 2) {
       setIsShowingChoices(true);
     } else {
       setIsShowingChoices(false);
     }
 
-    // シナリオの状態を更新
+    const updatedCharacters = updateCharacterInfo(nextLine, scenario.characters ? [...scenario.characters] : []);
+    const updatedLogs = addCurrentLineToLogs();
+
+    const nextCharIndex = (nextLine.type !== 2 && nextLine.character !== undefined) ? nextLine.character.index : -1;
     setScenario({
       currentLineIndex: nextLineIndex,
       currentLine: nextLine,
-      currentCharacterIndex: nextLine.character !== undefined ? nextLine.character.index : -1,
+      currentCharacterIndex: nextCharIndex,
       characters: updatedCharacters,
       logs: updatedLogs,
     });
@@ -250,13 +280,27 @@ export const useScenarioManager = (isLoaded: boolean) => {
     return true;
   }, [
     scenario,
-    setNavigation,
-    setScenario,
-    updateCharacterInfo,
-    addCurrentLineToLogs,
     isShowingChoices,
-    findLineIndexById,
+    performJump,
+    evaluateCondition,
+    setNavigation,
+    addCurrentLineToLogs,
+    advanceToDisplayLine,
+    updateCharacterInfo,
+    setScenario,
   ]);
+
+  // 選択肢が選ばれたときの処理
+  const handleChoiceSelect = useCallback(
+    async (choice: ScenarioChoice) => {
+      setIsShowingChoices(false);
+      const updatedLogs = addCurrentLineToLogs();
+      updatedLogs.push({ type: 0, text: `選択: ${choice.text}` } as ScenarioLogEntry);
+      setScenario((prev) => ({ ...prev, logs: updatedLogs }));
+      await performJump(choice.jumpTo);
+    },
+    [addCurrentLineToLogs, performJump, setScenario]
+  );
 
   // 現在のキャラクターの名前を取得
   const getCurrentCharacterName = useCallback(() => {
@@ -268,8 +312,57 @@ export const useScenarioManager = (isLoaded: boolean) => {
 
   // シナリオが終了しているかをチェック
   const isScenarioEnd = useCallback(() => {
-    return scenario.currentLineIndex >= scenario.lines.length - 1;
-  }, [scenario.currentLineIndex, scenario.lines.length]);
+    const remaining = scenario.lines.slice(scenario.currentLineIndex + 1);
+    return !remaining.some(isDisplayLine);
+  }, [scenario.currentLineIndex, scenario.lines]);
+
+  // シナリオをスキップする関数
+  const skipToNextChoice = useCallback(() => {
+    let updatedLogs = addCurrentLineToLogs();
+    let index = scenario.currentLineIndex + 1;
+    while (index < scenario.lines.length) {
+      const line = scenario.lines[index];
+      if (isDisplayLine(line) && line.type === 2) break;
+      index++;
+    }
+    const targetIndex = Math.min(index, scenario.lines.length - 1);
+    const nextLine = scenario.lines[targetIndex];
+
+    if (!isDisplayLine(nextLine)) {
+      setNavigation({ isAutoPlay: false });
+      return undefined;
+    }
+
+    for (let i = scenario.currentLineIndex + 1; i < targetIndex; i++) {
+      const skipped = scenario.lines[i];
+      if (!isDisplayLine(skipped)) continue;
+      const isAlreadyLogged = updatedLogs.some((log) => log.text === skipped.text);
+      if (!isAlreadyLogged) {
+        updatedLogs.push({ ...skipped, character: getCharacterInfoForLog(skipped) } as ScenarioLogEntry);
+      }
+    }
+
+    if (nextLine.type === 2) setIsShowingChoices(true);
+
+    const updatedCharacters = updateCharacterInfo(nextLine, scenario.characters ? [...scenario.characters] : []);
+    const skipCharIndex = (nextLine.type !== 2 && nextLine.character !== undefined) ? nextLine.character.index : -1;
+    setScenario({
+      currentLineIndex: targetIndex,
+      currentLine: nextLine,
+      currentCharacterIndex: skipCharIndex,
+      characters: updatedCharacters,
+      logs: updatedLogs,
+    });
+    setNavigation({ isAutoPlay: false });
+    return nextLine;
+  }, [
+    scenario,
+    addCurrentLineToLogs,
+    updateCharacterInfo,
+    getCharacterInfoForLog,
+    setScenario,
+    setNavigation,
+  ]);
 
   // 初期のシナリオをログに追加（一度だけ実行される）
   useEffect(() => {

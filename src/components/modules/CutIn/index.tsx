@@ -3,12 +3,13 @@ import { useScenarioStore } from "@/states/scenarioStore";
 
 export const CutIn: React.FC = () => {
   const { scenario } = useScenarioStore();
+  const currentLine = scenario.currentLine;
 
-  if (!scenario.currentLine?.cutIn) {
+  if (!currentLine || currentLine.type === 2 || !currentLine.cutIn) {
     return null;
   }
 
-  const { cutIn } = scenario.currentLine;
+  const { cutIn } = currentLine;
 
   return (
     <div className="absolute top-0 left-0 z-10 flex items-center justify-center w-full h-full pointer-events-none">

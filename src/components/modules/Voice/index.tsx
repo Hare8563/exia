@@ -3,13 +3,15 @@ import { useScenarioStore } from "@/states/scenarioStore";
 
 export const Voice: React.FC = () => {
   const { scenario } = useScenarioStore();
+  const currentLine = scenario.currentLine;
+  const speakerId = currentLine && currentLine.type !== 2 ? currentLine.character?.speakerId : undefined;
 
   return (
     <>
-      {scenario.currentLine?.character?.speakerId && (
+      {speakerId && (
         <audio
           // controls
-          src={`/voices/${scenario.currentLine.character.speakerId}.mp3`}
+          src={`/voices/${speakerId}.mp3`}
           autoPlay
           style={{ display: "none" }}
         />
