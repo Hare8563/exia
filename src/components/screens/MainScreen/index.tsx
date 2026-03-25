@@ -3,13 +3,11 @@ import { useScenarioStore } from "@/states/scenarioStore";
 import { getCurrentCharacterIndex } from "@/utils";
 import type { Scenario } from "@/types";
 import { Message } from "@/components/modules/Message";
-import { Background } from "@/components/modules/Background";
-import { CutIn } from "@/components/modules/CutIn";
-import { Character } from "@/components/modules/Character";
 import { Navigation } from "@/components/modules/Navigation";
 import { Loading } from "@/components/modules/Loading";
 import { Voice } from "@/components/modules/Voice";
 import { Log } from "@/components/modules/Log";
+import { ThreeCanvas } from "@/components/ThreeCanvas";
 
 export const MainScreen: React.FC = () => {
   const { scenario, setScenario } = useScenarioStore();
@@ -46,9 +44,7 @@ export const MainScreen: React.FC = () => {
   return (
     <>
       <Voice />
-      <Background />
-      <Character />
-      <CutIn />
+      <ThreeCanvas />
       <Message />
       <Navigation />
       <Log />
