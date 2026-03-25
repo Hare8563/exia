@@ -230,6 +230,8 @@ export const useScenarioManager = (isLoaded: boolean) => {
     if (!currentLine) return false;
 
     if (currentLine.type !== 2 && currentLine.jumpTo) {
+      const updatedLogs = addCurrentLineToLogs();
+      setScenario((prev) => ({ ...prev, logs: updatedLogs }));
       await performJump(currentLine.jumpTo);
       return true;
     }
@@ -237,6 +239,8 @@ export const useScenarioManager = (isLoaded: boolean) => {
     if (currentLine.type !== 2 && currentLine.if) {
       const jumpTarget = evaluateCondition(currentLine.if);
       if (jumpTarget) {
+        const updatedLogs = addCurrentLineToLogs();
+        setScenario((prev) => ({ ...prev, logs: updatedLogs }));
         await performJump(jumpTarget);
         return true;
       }
