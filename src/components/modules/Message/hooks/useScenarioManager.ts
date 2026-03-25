@@ -120,7 +120,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
       overrides?: {
         id?: string;
         backgroundFile?: string;
-        bgmFile?: string;
+        currentBgmFile?: string;
         currentFilePath?: string;
       }
     ) => {
@@ -160,6 +160,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
           currentCharacterIndex: charIndex,
           characters: updatedChars,
           flags: currentFlags,
+          ...(line.type !== 2 && line.bgmFile !== undefined ? { currentBgmFile: line.bgmFile } : {}),
         }));
         return;
       }
@@ -198,7 +199,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
 
         const baseCharacters = keepState ? scenario.characters ?? [] : loaded.characters ?? [];
         const baseBackground = keepState ? scenario.backgroundFile : loaded.backgroundFile;
-        const baseBgm = keepState ? scenario.bgmFile : loaded.bgmFile;
+        const baseBgm = keepState ? scenario.currentBgmFile : loaded.bgmFile;
 
         await advanceToDisplayLine(
           targetIndex,
@@ -208,7 +209,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
           {
             id: loaded.id,
             backgroundFile: baseBackground,
-            bgmFile: baseBgm,
+            ...(keepState ? {} : { currentBgmFile: baseBgm }),
             currentFilePath: filePath,
           }
         );
@@ -279,6 +280,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
       currentCharacterIndex: nextCharIndex,
       characters: updatedCharacters,
       logs: updatedLogs,
+      ...(nextLine.type !== 2 && nextLine.bgmFile !== undefined ? { currentBgmFile: nextLine.bgmFile } : {}),
     });
 
     return true;
@@ -356,6 +358,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
       currentCharacterIndex: skipCharIndex,
       characters: updatedCharacters,
       logs: updatedLogs,
+      ...(nextLine.type !== 2 && nextLine.bgmFile !== undefined ? { currentBgmFile: nextLine.bgmFile } : {}),
     });
     setNavigation({ isAutoPlay: false });
     return nextLine;
