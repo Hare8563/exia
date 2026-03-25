@@ -22,6 +22,10 @@
       "id": "entry",
       "type": 0,
       "text": "ようこそ、Exiaノベルゲームエンジンへ！"
+    },
+    {
+      "type": "jump",
+      "to": "S_000::start"
     }
   ]
 }

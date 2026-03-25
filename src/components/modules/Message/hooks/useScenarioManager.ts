@@ -317,7 +317,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
   // シナリオが終了しているかをチェック
   const isScenarioEnd = useCallback(() => {
     const remaining = scenario.lines.slice(scenario.currentLineIndex + 1);
-    return !remaining.some(isDisplayLine);
+    return !remaining.some((line) => isDisplayLine(line) || line.type === 'jump');
   }, [scenario.currentLineIndex, scenario.lines]);
 
   // シナリオをスキップする関数
