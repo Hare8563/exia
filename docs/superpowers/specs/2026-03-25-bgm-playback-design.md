@@ -35,7 +35,7 @@ Add BGM playback to the Exia engine. BGM files live in `public/sounds/bgm/`. BGM
 
 - `bgmFile` (optional `string`): filename of the BGM file under `public/sounds/bgm/`. Extension included (e.g. `"b0001.mp3"`).
 - Omitting `bgmFile` on a line means the current BGM continues unchanged.
-- Setting `bgmFile: ""` (empty string) stops the BGM.
+- Setting `bgmFile: ""` (empty string) stops the BGM. The `Bgm` component renders `null` when `!currentBgmFile`, so the `<audio>` element is removed and playback stops. A subsequent truthy `bgmFile` line will start fresh.
 - `ChoiceLine` (type 2) does not support `bgmFile`.
 
 ### TypeScript type changes
@@ -60,31 +60,48 @@ currentBgmFile: string | undefined;
 
 Default value: `undefined` (no BGM).
 
+`currentBgmFile` is a runtime-tracking field on `ScenarioState` only — it is not added to the `Scenario` type. The existing `Scenario.bgmFile` field (used in `performJump` for `keepState` logic — see below) is left unchanged.
+
 ### When `currentBgmFile` is updated
 
 | Trigger | New value |
 |---------|-----------|
 | Scenario file loads (initial load or cross-file jump with `keepState: false`) | `loaded.bgmFile ?? undefined` |
 | Cross-file jump with `keepState: true` | Unchanged (current value retained) |
-| Line with `bgmFile` field is shown | `line.bgmFile` (empty string stops BGM; truthy string changes BGM) |
+| Same-file jump (always) | Unchanged (Zustand partial merge preserves value; no override passed) |
+| Line with `bgmFile` field is shown (any of: `goToNextLine` direct path, `advanceToDisplayLine`, `skipToNextChoice`) | `line.bgmFile` (empty string stops BGM; truthy string changes BGM) |
 | Line without `bgmFile` field is shown | Unchanged |
 
-### Storing the update in useScenarioManager
+### Update paths in useScenarioManager
 
-`currentBgmFile` is updated alongside `currentLine` in `advanceToDisplayLine` and in the direct path of `goToNextLine`.
+**`advanceToDisplayLine`** — when a display line is found and `setScenario` is called:
+- If `line.bgmFile !== undefined`: include `currentBgmFile: line.bgmFile`.
+- Otherwise: omit `currentBgmFile` (Zustand partial merge preserves the existing value).
 
-In `advanceToDisplayLine`, when a display line is found:
-- If `line.bgmFile !== undefined`: include `currentBgmFile: line.bgmFile` in the `setScenario` call.
-- Otherwise: do not include `currentBgmFile` in the call (Zustand partial merge preserves the existing value).
-
-In `performJump`, `overrides` already accepts `bgmFile` for the scenario-level value. Rename the override key to `currentBgmFile` so it maps directly to the store field:
+**`performJump`** — the `overrides` object currently has `bgmFile?: string`. Rename this key to `currentBgmFile` so it maps directly to the store field:
 - `keepState: false`: `currentBgmFile: loaded.bgmFile ?? undefined`
-- `keepState: true`: omit `currentBgmFile` from overrides
+- `keepState: true`: omit `currentBgmFile` from overrides entirely
 
-In `MainScreen`, when loading the entry scenario, set `currentBgmFile: loaded.bgmFile ?? undefined`.
+Also update the `keepState: true` read on line 201 of the manager from `scenario.bgmFile` to `scenario.currentBgmFile`. After a per-line BGM override fires, `scenario.bgmFile` holds the scenario-level default while `scenario.currentBgmFile` holds the actively playing BGM. Using `scenario.bgmFile` would incorrectly restore the scenario default instead of the currently-playing track.
 
-In `goToNextLine` direct path (non-flag/jump next line), when calling `setScenario` with the new line:
+Concretely, change:
+```ts
+const baseBgm = keepState ? scenario.bgmFile : loaded.bgmFile;
+```
+to:
+```ts
+const baseBgm = keepState ? scenario.currentBgmFile : loaded.bgmFile;
+```
+
+**`goToNextLine` direct path** (non-flag/jump next line, the `setScenario` call at lines 276–282):
 - If `nextLine.bgmFile !== undefined`: include `currentBgmFile: nextLine.bgmFile`.
+
+**`skipToNextChoice`** (the `setScenario` call at lines 353–359):
+- If `nextLine.bgmFile !== undefined`: include `currentBgmFile: nextLine.bgmFile`.
+
+**`MainScreen` initial load** — when calling `setScenario` after loading `scenarios/main`:
+- Set `currentBgmFile: loaded.bgmFile ?? undefined`.
+- If the entry line itself has a `bgmFile` field, it takes priority. Read it as: `(loaded.lines[entryIndex] as NarrationLine | DialogueLine | ChoiceLine).bgmFile ?? loaded.bgmFile ?? undefined` — cast to `DisplayLine` and check for `bgmFile` (only exists on type 0/1; `ChoiceLine` does not have it, so use optional chaining). Simpler: access `(loaded.lines[entryIndex] as { bgmFile?: string }).bgmFile ?? loaded.bgmFile ?? undefined`.
 
 ---
 
@@ -132,10 +149,11 @@ import { Bgm } from '@/components/modules/Bgm'
 
 ## Cross-file Jump Behavior
 
-| `keepState` | BGM behavior |
-|-------------|-------------|
-| `false` (default) | `currentBgmFile` is set to the new scenario's `bgmFile` (or `undefined` if absent) |
-| `true` | `currentBgmFile` is unchanged — BGM continues playing across file boundary |
+| Jump type | BGM behavior |
+|-----------|-------------|
+| Cross-file, `keepState: false` (default) | `currentBgmFile` set to new scenario's `bgmFile` (or `undefined` if absent) |
+| Cross-file, `keepState: true` | `currentBgmFile` unchanged — BGM continues across file boundary |
+| Same-file jump | `currentBgmFile` unchanged — no override passed; Zustand preserves value |
 
 ---
 
@@ -150,12 +168,12 @@ import { Bgm } from '@/components/modules/Bgm'
 
 ```
 src/
-  types/index.ts                                       CHANGE: bgmFile? on NarrationLine, DialogueLine
-  states/scenarioStore.ts                              CHANGE: add currentBgmFile: string | undefined
+  types/index.ts                                           CHANGE: bgmFile? on NarrationLine, DialogueLine
+  states/scenarioStore.ts                                  CHANGE: add currentBgmFile: string | undefined
   components/
     modules/
-      Bgm/index.tsx                                    NEW: BGM playback component
-    screens/MainScreen/index.tsx                       CHANGE: add <Bgm />, set currentBgmFile on load
+      Bgm/index.tsx                                        NEW: BGM playback component
+    screens/MainScreen/index.tsx                           CHANGE: add <Bgm />, set currentBgmFile on load
   components/modules/Message/hooks/useScenarioManager.ts  CHANGE: update currentBgmFile on line display
 ```
 
