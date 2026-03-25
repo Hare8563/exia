@@ -27,29 +27,75 @@ export type ScenarioCutIn = {
   isFullScreen?: boolean;
 };
 
-export type ScenarioChoice = {
-  text: string;
-  jumpTo: string; // ジャンプ先のID
+export type FlagValue = boolean | number | string;
+
+export type ScenarioCondition = {
+  flag: string;
+  equals?: FlagValue;
+  gt?: number;
+  lt?: number;
+  then: string;
+  else?: string;
 };
 
-export type ScenarioLine = {
-  id?: string; // 特定の行にジャンプするためのID
-  character?: {
-    index: number;
-    name?: string;
-    imageFile?: string;
-    animation?: string;
-    isShow?: boolean;
-    speakerId?: number;
-  };
-  cutIn?: ScenarioCutIn;
-  imageFile?: string;
-  backgroundFile?: string;
-  type: number; // 0=ナレーション, 1=セリフ, 2=選択肢
+export type ScenarioChoice = {
   text: string;
-  choices?: ScenarioChoice[]; // 選択肢の配列
-  jumpTo?: string; // ジャンプ先の行ID
+  jumpTo: string;
 };
+
+type ScenarioLineCharacter = {
+  index: number;
+  name?: string;
+  imageFile?: string;
+  animation?: string;
+  isShow?: boolean;
+  speakerId?: number;
+};
+
+export type NarrationLine = {
+  id?: string;
+  type: 0;
+  text: string;
+  character?: ScenarioLineCharacter;
+  cutIn?: ScenarioCutIn;
+  backgroundFile?: string;
+  jumpTo?: string;
+  if?: ScenarioCondition;
+};
+
+export type DialogueLine = {
+  id?: string;
+  type: 1;
+  text: string;
+  character?: ScenarioLineCharacter;
+  cutIn?: ScenarioCutIn;
+  backgroundFile?: string;
+  jumpTo?: string;
+  if?: ScenarioCondition;
+};
+
+export type ChoiceLine = {
+  id?: string;
+  type: 2;
+  text: string;
+  choices: ScenarioChoice[];
+};
+
+export type FlagLine = {
+  id?: string;
+  type: 'flag';
+  set: Record<string, FlagValue>;
+};
+
+export type JumpLine = {
+  id?: string;
+  type: 'jump';
+  to: string;
+  keepState?: boolean;
+};
+
+export type DisplayLine = NarrationLine | DialogueLine | ChoiceLine;
+export type ScenarioLine = DisplayLine | FlagLine | JumpLine;
 
 export type Navigation = {
   isAutoPlay: boolean;
@@ -90,6 +136,6 @@ export type CharacterInfo = {
 };
 
 // ScenarioLogのための型
-export type ScenarioLogEntry = ScenarioLine & {
+export type ScenarioLogEntry = DisplayLine & {
   character?: CharacterInfo;
 };
