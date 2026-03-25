@@ -29,6 +29,72 @@ Redesign the scenario loading system to:
 
 The separator between file path and label is `::`. The file path omits the `.json` extension. Paths are resolved relative to `currentFilePath` stored in the scenario store.
 
+### TypeScript Type Definitions
+
+The existing `ScenarioLine` type uses `type: number`. The new node types use string literals. These are reconciled via a discriminated union:
+
+```ts
+// Existing numeric line types (unchanged)
+export type NarrationLine = {
+  id?: string;
+  type: 0;
+  text: string;
+  character?: ScenarioLineCharacter;
+  cutIn?: ScenarioCutIn;
+  backgroundFile?: string;
+  jumpTo?: string;
+  if?: ScenarioCondition;
+};
+
+export type DialogueLine = {
+  id?: string;
+  type: 1;
+  text: string;
+  character?: ScenarioLineCharacter;
+  cutIn?: ScenarioCutIn;
+  backgroundFile?: string;
+  jumpTo?: string;
+  if?: ScenarioCondition;
+};
+
+export type ChoiceLine = {
+  id?: string;
+  type: 2;
+  text: string;
+  choices: ScenarioChoice[];
+};
+
+// New string-typed line nodes — no `text` field
+export type FlagLine = {
+  id?: string;
+  type: "flag";
+  set: Record<string, boolean | number | string>;
+};
+
+export type JumpLine = {
+  id?: string;
+  type: "jump";
+  to: string;
+  keepState?: boolean;
+};
+
+export type ScenarioLine = NarrationLine | DialogueLine | ChoiceLine | FlagLine | JumpLine;
+
+// Condition block used in if property
+export type ScenarioCondition = {
+  flag: string;
+  equals?: boolean | number | string;
+  gt?: number;
+  lt?: number;
+  then: string;    // jumpTo path
+  else?: string;   // jumpTo path, optional
+};
+
+export type FlagValue = boolean | number | string;
+```
+
+All existing consumers of `ScenarioLine` that access `.text` must narrow the type first (e.g. `if (line.type === 0 || line.type === 1 || line.type === 2)`).
+
 ### New Line Nodes
 
 #### `type: "flag"` — Set flags (no display, no click required)
@@ -37,8 +103,9 @@ The separator between file path and label is `::`. The file path omits the `.jso
 { "type": "flag", "set": { "talked_to_nagi": true, "count": 3 } }
 ```
 
-- Processed silently; the engine advances to the next line immediately.
+- **Never set as `currentLine`** in the store. The engine processes and advances synchronously in the same `goToNextLine` call without triggering a React re-render with this node.
 - Values can be `boolean`, `number`, or `string`.
+- Never added to the backlog log.
 
 #### `type: "jump"` — Jump to another location (no display, no click required)
 
@@ -48,10 +115,11 @@ The separator between file path and label is `::`. The file path omits the `.jso
 ```
 
 - `to`: jumpTo path (supports cross-file syntax).
-- `keepState` (default `false`): when `false`, resets characters and background to the target file's definitions; when `true`, carries over the current character/background state.
-- Executed immediately without waiting for user input.
+- `keepState` (default `false`): see Cross-file jump behavior below.
+- **Never set as `currentLine`**. Processed synchronously without triggering render.
+- Never added to the backlog log.
 
-#### `if` property on any existing line — Conditional branching
+#### `if` property on NarrationLine / DialogueLine — Conditional branching
 
 ```json
 {
@@ -66,10 +134,11 @@ The separator between file path and label is `::`. The file path omits the `.jso
 }
 ```
 
-- The line is displayed normally first, then the condition is evaluated.
-- Supported operators: `equals`, `gt` (greater than), `lt` (less than).
-- Both `then` and `else` are jumpTo paths.
+- The line is displayed normally first, then the condition is evaluated after the user advances.
+- Supported operators: `equals`, `gt` (greater than), `lt` (less than). Only one operator per condition block.
 - `else` is optional; if omitted and the condition is false, execution continues to the next line.
+- `if` is only valid on `type: 0` and `type: 1` lines. It is not supported on `type: 2` (choice) lines — use choice `jumpTo` for branching from choices.
+- When both `jumpTo` and `if` are present on the same line, `jumpTo` takes precedence and `if` is ignored.
 
 ### Entry Point
 
@@ -85,6 +154,8 @@ The game always starts by loading `public/scenarios/main.json` and finding the l
 }
 ```
 
+If `main.json` cannot be fetched or does not contain a line with `id: "entry"`, the engine throws an error and displays a developer-facing error message: `"[Exia] Failed to load entry point: scenarios/main.json must exist and contain a line with id: 'entry'."` The game does not start.
+
 ---
 
 ## Architecture
@@ -94,8 +165,8 @@ The game always starts by loading `public/scenarios/main.json` and finding the l
 Add two fields to `ScenarioState`:
 
 ```ts
-currentFilePath: string;              // e.g. "scenarios/chapter1/scene_2"
-flags: Record<string, boolean | number | string>;  // game flag storage
+currentFilePath: string;                          // e.g. "scenarios/chapter1/scene_2"
+flags: Record<string, FlagValue>;                 // game flag storage
 ```
 
 Flags live in `scenarioStore` (not a separate store) so they are included in a future save snapshot automatically.
@@ -111,6 +182,10 @@ async function loadScenario(filePath: string): Promise<Scenario>
 // filePath example: "scenarios/main", "scenarios/chapter1/scene_2"
 // Fetches: /scenarios/main.json
 ```
+
+**Error handling:**
+- If the `fetch` fails (network error, 404, non-ok status): throw an `Error` with message `"[Exia] Failed to load scenario: <filePath>.json"`.
+- The caller (`useScenarioManager`) catches this and sets an error state visible in the UI (e.g. a full-screen error message). The game halts.
 
 #### `src/utils/jumpToResolver.ts`
 
@@ -130,16 +205,22 @@ Examples:
 
 ### `useScenarioManager.ts` Changes
 
-#### New: `evaluateCondition(if, flags)`
+#### New: `evaluateCondition(condition, flags)`
 
-Evaluates an `if` block against the current `flags` state. Returns `then` or `else` jumpTo string (or `null` if no jump).
+Evaluates a `ScenarioCondition` block against the current `flags` state. Returns the `then` or `else` jumpTo string, or `null` if no jump should occur (condition is false and `else` is absent).
 
 #### Modified: `goToNextLine()`
 
-1. Check `type: "flag"` → update flags, skip to next line automatically.
-2. Check `type: "jump"` → call `resolveJumpTo`, then either update line index (same file) or call `loadScenario` + replace scenario state.
-3. Check `if` property → after line display, evaluate condition and jump to `then` or `else`.
-4. Check `jumpTo` on current line (existing behavior, upgraded to use `resolveJumpTo`).
+Priority order for processing the **next** line (i.e. `lines[nextIndex]`):
+
+1. If `nextLine.type === "flag"`: apply `set` to `flags` in store, advance index again. Repeat until a non-flag node is found. Do **not** set `currentLine` to any flag node.
+2. If `nextLine.type === "jump"`: resolve `to` path, load file if needed, seek to label. Do **not** set `currentLine` to the jump node.
+3. Otherwise, set `currentLine` to `nextLine` and render normally.
+
+After user advances from a rendered line:
+
+4. If `currentLine.jumpTo` is set: resolve and jump (takes precedence over `if`).
+5. Else if `currentLine.if` is set: evaluate condition and jump to `then` or `else` (or continue if `else` absent and condition false).
 
 #### Modified: `handleChoiceSelect()`
 
@@ -147,9 +228,24 @@ Uses `resolveJumpTo` instead of `findLineIndexById` directly. Supports cross-fil
 
 #### Cross-file jump behavior
 
-When jumping to a different file:
-- **`keepState: false` (default):** Replace `characters` and `backgroundFile` with the target file's top-level definitions. Reset `currentLineIndex` to the target label's index.
-- **`keepState: true`:** Retain current `characters` and `backgroundFile`. Only update `lines`, `id`, `currentFilePath`, and seek to the target label.
+When `resolveJumpTo` returns a `filePath` different from `currentFilePath`:
+
+1. Call `loadScenario(filePath)`.
+2. Find the index of `labelId` in the loaded scenario's `lines`. If not found, throw `"[Exia] Label '<labelId>' not found in <filePath>.json"`. The game halts.
+3. Apply state based on `keepState`:
+   - **`keepState: false` (default):** Replace `characters`, `backgroundFile`, and `bgmFile` with the target file's top-level definitions. Reset to the target label's index.
+   - **`keepState: true`:** Retain current `characters`, `backgroundFile`, and `bgmFile`. Only update `lines`, `id`, and `currentFilePath`, then seek to the target label's index.
+
+#### Log system behavior
+
+- `flag` and `jump` nodes are **never** added to the backlog log.
+- Only `type: 0`, `type: 1`, and `type: 2` lines are logged.
+
+#### Skip behavior (`skipToNextChoice`)
+
+- The skip function iterates lines but does **not** apply `flag` side-effects during the skip. Flags are only set when the player reaches and passes through a `flag` node during normal play.
+- `jump` nodes encountered during skip are also not followed; the skip simply continues iterating lines in the current file until it finds the next `type: 2` line.
+- This is consistent with the existing behavior and acceptable for the current scope.
 
 ### `MainScreen/index.tsx` Changes
 
@@ -158,6 +254,9 @@ Remove the static `import("@/scenarios/S_000.json")`. Replace with:
 ```ts
 const scenario = await loadScenario("scenarios/main");
 const entryIndex = scenario.lines.findIndex(l => l.id === "entry");
+if (entryIndex === -1) {
+  throw new Error("[Exia] Failed to load entry point: scenarios/main.json must exist and contain a line with id: 'entry'.");
+}
 ```
 
 ---
@@ -178,9 +277,9 @@ src/
   states/
     scenarioStore.ts             # CHANGE: add currentFilePath, flags
   types/
-    index.ts                     # CHANGE: new types for flag/jump nodes, if property
+    index.ts                     # CHANGE: discriminated union for ScenarioLine; new types
   components/
-    screens/MainScreen/index.tsx              # CHANGE: dynamic load
+    screens/MainScreen/index.tsx              # CHANGE: dynamic load from entry point
     modules/Message/hooks/useScenarioManager.ts  # CHANGE: flag/jump/if logic
 ```
 
@@ -188,7 +287,8 @@ src/
 
 ## Out of Scope
 
-- Skip function cross-file support (`skipToNextChoice` remains within current file only)
+- Skip function cross-file support (`skipToNextChoice` remains within current file only; flags are not applied during skip)
 - Flag persistence (deferred to future save system)
 - Compound conditions (`AND`/`OR`) — single flag comparison only
+- `if` property on `type: 2` (choice) lines
 - Save/load integration
