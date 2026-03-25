@@ -199,7 +199,6 @@ export const useScenarioManager = (isLoaded: boolean) => {
 
         const baseCharacters = keepState ? scenario.characters ?? [] : loaded.characters ?? [];
         const baseBackground = keepState ? scenario.backgroundFile : loaded.backgroundFile;
-        const baseBgm = keepState ? scenario.currentBgmFile : loaded.bgmFile;
 
         await advanceToDisplayLine(
           targetIndex,
@@ -209,7 +208,7 @@ export const useScenarioManager = (isLoaded: boolean) => {
           {
             id: loaded.id,
             backgroundFile: baseBackground,
-            ...(keepState ? {} : { currentBgmFile: baseBgm }),
+            ...(keepState ? {} : { currentBgmFile: loaded.bgmFile }),
             currentFilePath: filePath,
           }
         );
