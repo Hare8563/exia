@@ -29,3 +29,8 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# assets
+/public/images
+/public/sounds
+/public/scenarios
