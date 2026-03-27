@@ -1,0 +1,170 @@
+{
+  "9": {
+    "inputs": {
+      "unet_name": "anima-preview.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "Qwen_Image-VAE.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "11": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "12": {
+    "inputs": {
+      "samples": [
+        "16",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "15": {
+    "inputs": {
+      "text": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, sepia, ",
+      "clip": [
+        "22",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "16": {
+    "inputs": {
+      "seed": 343075084133828,
+      "steps": 30,
+      "cfg": 4,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "20",
+        0
+      ],
+      "positive": [
+        "17",
+        0
+      ],
+      "negative": [
+        "15",
+        0
+      ],
+      "latent_image": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "17": {
+    "inputs": {
+      "text": "masterpiece, best quality, game cg, safe, @artist_name",
+      "clip": [
+        "22",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "18": {
+    "inputs": {
+      "width": 1344,
+      "height": 768,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "19": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "20": {
+    "inputs": {
+      "enable_replay": true,
+      "block_indices": "3,5,9",
+      "denoise_start_pct": 0.6,
+      "denoise_end_pct": 0.8,
+      "enable_spectrum": true,
+      "spectrum_w": 0.25,
+      "spectrum_m": 16,
+      "spectrum_lam": 0.95,
+      "spectrum_warmup_steps": 9,
+      "spectrum_window_size": 2,
+      "spectrum_flex_window": 0,
+      "model": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "AnimaLayerReplayPatcher",
+    "_meta": {
+      "title": "Anima Layer Replay Patcher"
+    }
+  },
+  "22": {
+    "inputs": {
+      "lora_name": "Anima\\layra-anima-preview.safetensors",
+      "strength_model": 0.8,
+      "strength_clip": 0.8,
+      "model": [
+        "9",
+        0
+      ],
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "Load Lora",
+    "_meta": {
+      "title": "Load Lora"
+    }
+  }
+}

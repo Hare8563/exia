@@ -55,4 +55,7 @@ ComfyUIに投げるプロンプトには、以下のエッセンスを必ず盛�
 4.  **ぬらぬら感**: 液体、光沢、滴りの表現（湿潤性）を視覚化。
 
 ## ComfyUI Request Schema (Expected JSON Structure to API)
-(ここにComfyUI APIへ送信する標準的な `prompt` ワークフローJSONの構造定義を内部参照として保持します)
+- resources/AnimaWorkflow.json: Anima previewモデルを使って画像生成を行うシンプルなワークフロー
+- resources/AnimaWorkflow_with_lora.json: Anima previewモデルにLoRAを適用して画像生成を行うワークフロー
+- resources/SAM3AnimaMaskWorkflow.json: SAM3を使ってプロンプトで指示した部分をInpaintingするワークフロー
+- resources/SAM3MaskWorkflow_lora.json: SAM3を使ってプロンプトで指示した部分をInpaintingするワークフロー(LoRA適用)

@@ -1,0 +1,233 @@
+{
+  "1": {
+    "inputs": {
+      "image": "ComfyUI_I2I_02190_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": "sam3.pt",
+      "segmentor": "image",
+      "device": "cuda",
+      "precision": "bf16"
+    },
+    "class_type": "easy sam3ModelLoader",
+    "_meta": {
+      "title": "Load SAM3 Model"
+    }
+  },
+  "3": {
+    "inputs": {
+      "prompt": "person",
+      "threshold": 0.4,
+      "keep_model_loaded": false,
+      "add_background": "none",
+      "detection_limit": 1,
+      "sam3_model": [
+        "2",
+        0
+      ],
+      "images": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "easy sam3ImageSegmentation",
+    "_meta": {
+      "title": "Sam3 Image Segmentation"
+    }
+  },
+  "9": {
+    "inputs": {
+      "unet_name": "anima-preview.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "Qwen_Image-VAE.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "11": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "12": {
+    "inputs": {
+      "samples": [
+        "14",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "13": {
+    "inputs": {
+      "text": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, sepia, ",
+      "clip": [
+        "20",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "14": {
+    "inputs": {
+      "seed": 1111436663995775,
+      "steps": 30,
+      "cfg": 4,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "20",
+        0
+      ],
+      "positive": [
+        "15",
+        0
+      ],
+      "negative": [
+        "13",
+        0
+      ],
+      "latent_image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "15": {
+    "inputs": {
+      "text": "masterpiece, best quality, @<artist name>",
+      "clip": [
+        "20",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "16": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "17": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "18": {
+    "inputs": {
+      "enable_replay": true,
+      "block_indices": "3,5,9",
+      "denoise_start_pct": 0.6,
+      "denoise_end_pct": 0.8,
+      "enable_spectrum": true,
+      "spectrum_w": 0.25,
+      "spectrum_m": 16,
+      "spectrum_lam": 0.95,
+      "spectrum_warmup_steps": 9,
+      "spectrum_window_size": 2,
+      "spectrum_flex_window": 0,
+      "model": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "AnimaLayerReplayPatcher",
+    "_meta": {
+      "title": "Anima Layer Replay Patcher"
+    }
+  },
+  "19": {
+    "inputs": {
+      "grow_mask_by": 6,
+      "pixels": [
+        "1",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ],
+      "mask": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEEncodeForInpaint",
+    "_meta": {
+      "title": "VAE Encode (for Inpainting)"
+    }
+  },
+  "20": {
+    "inputs": {
+      "lora_name": "Anima\\layra-anima-preview.safetensors",
+      "strength_model": 0.8,
+      "strength_clip": 0.8,
+      "model": [
+        "9",
+        0
+      ],
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "Load Lora",
+    "_meta": {
+      "title": "Load Lora"
+    }
+  }
+}
