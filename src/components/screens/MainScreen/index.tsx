@@ -1,68 +1,32 @@
 import React, { useEffect } from 'react'
-import { useScenarioStore } from '@/states/scenarioStore'
-import { getCurrentCharacterIndex } from '@/utils'
-import { loadScenario } from '@/utils/scenarioLoader'
-import { DisplayLine } from '@/types'
+import { loadKAGScenario } from '@/utils/kagLoader'
+import { useKAGScenarioStore } from '@/states/kagScenarioStore'
+import { ThreeCanvas } from '@/components/ThreeCanvas'
 import { Message } from '@/components/modules/Message'
 import { Navigation } from '@/components/modules/Navigation'
-import { Loading } from '@/components/modules/Loading'
+import { Log } from '@/components/modules/Log'
 import { Voice } from '@/components/modules/Voice'
 import { Bgm } from '@/components/modules/Bgm'
-import { Log } from '@/components/modules/Log'
-import { ThreeCanvas } from '@/components/ThreeCanvas'
+import { useKAGScenarioManager } from '@/components/modules/Message/hooks/useKAGScenarioManager'
 
 export const MainScreen: React.FC = () => {
-  const { scenario, setScenario } = useScenarioStore()
+  const { init } = useKAGScenarioManager()
+  const flags = useKAGScenarioStore(s => s.flags)
 
   useEffect(() => {
-    const loadEntry = async () => {
-      if (scenario.isFetched) return
-
-      try {
-        const loaded = await loadScenario('scenarios/main')
-        const entryIndex = loaded.lines.findIndex((l) => l.id === 'entry')
-
-        if (entryIndex === -1) {
-          throw new Error(
-            "[Exia] Failed to load entry point: scenarios/main.json must exist and contain a line with id: 'entry'."
-          )
-        }
-
-        const entryLine = loaded.lines[entryIndex] as { bgmFile?: string }
-        const initialBgm = entryLine.bgmFile ?? loaded.bgmFile ?? undefined
-
-        // Do NOT spread scenario here — Zustand's setScenario merges with existing state.
-        // Spreading a stale scenario snapshot would overwrite fields changed elsewhere.
-        setScenario({
-          id: loaded.id,
-          backgroundFile: loaded.backgroundFile,
-          bgmFile: loaded.bgmFile,
-          lines: loaded.lines,
-          characters: loaded.characters,
-          currentFilePath: 'scenarios/main',
-          currentCharacterIndex: getCurrentCharacterIndex(loaded.lines, entryIndex),
-          currentLineIndex: entryIndex,
-          currentLine: loaded.lines[entryIndex] as DisplayLine,
-          isFetched: true,
-          currentBgmFile: initialBgm,
-        })
-      } catch (error) {
-        console.error(error)
-      }
-    }
-
-    loadEntry()
-  }, [scenario.isFetched, setScenario])
+    loadKAGScenario('scenarios/main', flags)
+      .then(interp => init(interp))
+      .catch(console.error)
+  }, [])
 
   return (
-    <>
+    <div className="relative w-full h-full">
       <Voice />
       <Bgm />
       <ThreeCanvas />
       <Message />
       <Navigation />
       <Log />
-      <Loading />
-    </>
+    </div>
   )
 }

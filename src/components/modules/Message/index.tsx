@@ -1,80 +1,82 @@
-import React, { useEffect, useState } from "react";
-import { useScreenStore } from "@/states/screenStore";
-import { useSkipActionStore } from "@/states/skipActionStore";
-import { Choice } from "../Choice";
-import { MessageTypewriter } from "./MessageTypewriter";
-import { useScenarioManager } from "./hooks/useScenarioManager";
-import { DialogueLayout, NarrationLayout } from "./layouts";
+import React, { useState, useCallback } from "react";
+import { useKAGScenarioManager } from './hooks/useKAGScenarioManager'
+import { useKAGScenarioStore } from '@/states/kagScenarioStore'
+import { useNavigationStore } from '@/states/navigationStore'
+import { useSkipActionStore } from '@/states/skipActionStore'
+import { useScreenStore } from '@/states/screenStore'
+import { MessageTypewriter } from './MessageTypewriter'
+import { Choice } from '../Choice'
+import { DialogueLayout, NarrationLayout } from './layouts'
+import { SCREEN } from '@/constants'
+import type { ScenarioChoice } from '@/types'
 
 export const Message: React.FC = () => {
-  const { screenState } = useScreenStore();
-  const { isLoaded } = screenState;
-  const { setSkipAction } = useSkipActionStore();
-  const {
-    scenario,
-    navigation,
-    goToNextLine,
-    getCurrentCharacterName,
-    isScenarioEnd,
-    isShowingChoices,
-    handleChoiceSelect,
-    skipToNextChoice,
-  } = useScenarioManager(isLoaded);
+  const { goToNextLine, handleChoiceSelect, skipToNextChoice, isScenarioEnd } =
+    useKAGScenarioManager()
+  const currentText = useKAGScenarioStore(s => s.currentText)
+  const speakerName = useKAGScenarioStore(s => s.currentSpeakerName)
+  const choices = useKAGScenarioStore(s => s.currentChoices)
+  const { navigation } = useNavigationStore()
+  const { setScreen } = useScreenStore()
 
-  const [isShowArrowIcon, setIsShowArrowIcon] = useState(false);
-  const [isReading, setIsReading] = useState(false);
-  const [typewriterInstance, setTypewriterInstance] = useState<any>(null);
+  const [isShowArrowIcon, setIsShowArrowIcon] = useState(false)
+  const [isReading, setIsReading] = useState(false)
+  const [typewriterInstance, setTypewriterInstance] = useState<any>(null)
 
-  // スキップ関数を外部（Navigation）から呼び出せるように登録
-  useEffect(() => {
-    setSkipAction({ skipToNextChoice });
-  }, [skipToNextChoice, setSkipAction]);
+  // Register skip callback for Navigation's skip button
+  useSkipActionStore.getState().setSkipAction({ skipToNextChoice })
 
-  const handleNext = () => {
+  const handleNext = useCallback(async () => {
+    if (isScenarioEnd) {
+      setScreen({ screen: SCREEN.ENDING_SCREEN })
+      return
+    }
+    if (choices) return  // blocked until choice selected
     if (isReading) {
       if (typewriterInstance) {
-        // タイピング中なら最後まで表示
-        const currentText = scenario.currentLine?.text || "";
-        typewriterInstance.stop().typeString(currentText).start();
-        setIsReading(false);
-        setIsShowArrowIcon(true);
+        typewriterInstance.stop().typeString(currentText).start()
+        setIsReading(false)
+        setIsShowArrowIcon(true)
       }
-      return;
+      return
     }
+    await goToNextLine()
+  }, [isScenarioEnd, choices, isReading, typewriterInstance, currentText, goToNextLine, setScreen])
 
-    if (!isScenarioEnd()) {
-      void goToNextLine()
-    }
-  };
+  if (!currentText && !choices) return null
 
-  if (!isLoaded || !scenario.currentLine) {
-    return null;
-  }
+  const Layout = speakerName ? DialogueLayout : NarrationLayout
 
-  const Layout = scenario.currentLine.type === 1 ? DialogueLayout : NarrationLayout;
+  // Map KAG choices { text, target } to ScenarioChoice { text, jumpTo }
+  const mappedChoices: ScenarioChoice[] | undefined = choices?.map(c => ({
+    text: c.text,
+    jumpTo: c.target,
+  }))
 
   return (
     <div className="absolute bottom-0 left-0 z-40 w-full h-full pointer-events-none">
       <div className="pointer-events-auto cursor-pointer" onClick={handleNext}>
         <Layout
-          characterName={getCurrentCharacterName()}
+          characterName={speakerName}
           showArrowIcon={isShowArrowIcon}
           isAutoPlay={navigation.isAutoPlay}
         >
           <MessageTypewriter
+            key={currentText}
             navigation={navigation}
-            text={scenario.currentLine.text}
+            text={currentText}
             setIsShowArrowIcon={setIsShowArrowIcon}
             setIsReading={setIsReading}
             setTypewriterInstance={setTypewriterInstance}
           />
         </Layout>
       </div>
-
-      {/* 選択肢の表示 */}
-      {isShowingChoices && scenario.currentLine && scenario.currentLine.type === 2 && scenario.currentLine.choices && (
-        <Choice choices={scenario.currentLine.choices} onSelect={handleChoiceSelect} />
+      {mappedChoices && (
+        <Choice
+          choices={mappedChoices}
+          onSelect={(choice: ScenarioChoice) => handleChoiceSelect(choice.jumpTo)}
+        />
       )}
     </div>
-  );
-};
+  )
+}

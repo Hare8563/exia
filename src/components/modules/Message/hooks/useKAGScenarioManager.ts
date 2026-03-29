@@ -111,6 +111,11 @@ export function useKAGScenarioManager() {
   const init = useCallback((interp: KAGInterpreter) => {
     interpreterRef.current = interp
     setIsScenarioEnd(false)
+    // Register the onTransitionComplete callback in the store so Background3D can call it
+    useKAGScenarioStore.getState().setTransitionCompleteCallback(() => {
+      interpreterRef.current?.onTransitionComplete()
+      useKAGScenarioStore.getState().setFrame({ isWaitingTransition: false, currentTransition: undefined })
+    })
     void doAdvance()
   }, [doAdvance])
 

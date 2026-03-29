@@ -1,15 +1,15 @@
 import React from 'react'
-import { useScenarioStore } from '@/states/scenarioStore'
+import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 
 export const Bgm: React.FC = () => {
-  const currentBgmFile = useScenarioStore((s) => s.scenario.currentBgmFile)
+  const bgmFile = useKAGScenarioStore(s => s.currentBgmFile)
 
-  if (!currentBgmFile) return null
+  if (!bgmFile) return null
 
   return (
     <audio
-      key={currentBgmFile}
-      src={`/sounds/bgm/${currentBgmFile}`}
+      key={bgmFile}
+      src={`/sounds/bgm/${bgmFile}`}
       autoPlay
       loop
       style={{ display: 'none' }}

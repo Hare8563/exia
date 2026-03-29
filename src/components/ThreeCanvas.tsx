@@ -1,8 +1,7 @@
 import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Background3D } from './modules/Background/Background3D';
-import { Character3D } from './modules/Character/Character3D';
-import { CutIn3D } from './modules/CutIn/CutIn3D';
+import { ForegroundLayer } from './modules/ForegroundLayer/ForegroundLayer';
 
 export const ThreeCanvas: React.FC = () => {
   return (
@@ -14,10 +13,8 @@ export const ThreeCanvas: React.FC = () => {
         <Suspense fallback={null}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} intensity={1} />
-
           <Background3D />
-          <Character3D />
-          <CutIn3D />
+          <ForegroundLayer />
         </Suspense>
       </Canvas>
     </div>

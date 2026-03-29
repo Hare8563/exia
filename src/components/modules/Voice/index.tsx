@@ -1,37 +1,33 @@
 import React from "react";
-import { useScenarioStore } from "@/states/scenarioStore";
+import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import { CONFIG } from "@/constants";
 
 export const Voice: React.FC = () => {
-  const { scenario } = useScenarioStore();
-  const currentLine = scenario.currentLine;
+  const voiceFile = useKAGScenarioStore(s => s.currentVoiceFile)
+  const speakerId = useKAGScenarioStore(s => s.currentVoiceSpeakerId)
+  const choices = useKAGScenarioStore(s => s.currentChoices)
 
-  if (!currentLine || currentLine.type === 2) return null;
+  if (choices) return null  // no voice on choice screens
 
-  const voice = currentLine.voice;
-  const speakerId = currentLine.character?.speakerId;
-
-  // Line-level voice file takes precedence over VOICEVOX
-  if (voice) {
+  if (voiceFile) {
     return (
       <audio
-        key={voice}
-        src={`/sounds/voices/${voice}`}
+        key={voiceFile}
+        src={`/sounds/voices/${voiceFile}`}
         autoPlay
-        style={{ display: "none" }}
+        style={{ display: 'none' }}
       />
     );
   }
-
-  if (CONFIG.VOICEVOX && speakerId) {
+  if (CONFIG.VOICEVOX && speakerId !== undefined) {
     return (
       <audio
+        key={speakerId}
         src={`/voices/${speakerId}.mp3`}
         autoPlay
-        style={{ display: "none" }}
+        style={{ display: 'none' }}
       />
     );
   }
-
   return null;
 };

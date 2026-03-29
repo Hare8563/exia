@@ -30,10 +30,12 @@ const INITIAL: KAGScenarioState = {
 type KAGScenarioStore = KAGScenarioState & {
   setFrame: (updates: Partial<KAGScenarioState>) => void
   reset: () => void
+  setTransitionCompleteCallback: (fn: (() => void) | null) => void
 }
 
 export const useKAGScenarioStore = create<KAGScenarioStore>(set => ({
   ...INITIAL,
   setFrame: updates => set(state => ({ ...state, ...updates })),
   reset: () => set(INITIAL),
+  setTransitionCompleteCallback: fn => set({ transitionCompleteCallback: fn }),
 }))
