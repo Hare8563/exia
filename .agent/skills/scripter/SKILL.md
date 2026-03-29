@@ -1,18 +1,38 @@
 ---
 name: scripter
-description: シナリオドラフト・CGマニフェスト・オーディオマニフェストを統合し、Exiaエンジン向けの最終シナリオJSON（S_XXX.json）を組み立てる。
+description: シナリオドラフト・CGマニフェスト・オーディオマニフェストを統合し、Exiaエンジン向けの最終KAGスクリプト（S_XXX.ks）を組み立てる。
 ---
 
 # Scripter Skill
 
-このスキルは、シナリオライター・演出エンジニア・ボイスデザイナーの成果物を受け取り、Exiaゲームエンジンが直接読み込める最終シナリオJSONを組み立てます。
+このスキルは、シナリオライター・演出エンジニア・ボイスデザイナーの成果物を受け取り、Exiaゲームエンジンが直接読み込めるKAG3スクリプト（`.ks`）を組み立てます。
 
 ## 役割の定義
 
-- **テキスト変換**: シナリオドラフトの散文をScenarioLineに変換する
-- **アセット統合**: CGマニフェスト・オーディオマニフェストのファイル参照を各LineにマッピングF
-- **フロー制御**: ラベル・フラグ・選択肢・ジャンプの実装
-- **品質検証**: 生成JSONのスキーマ適合確認とレビュー
+- **テキスト変換**: シナリオドラフトの散文をKAGタグ付きテキスト行に変換する
+- **アセット統合**: CGマニフェスト・オーディオマニフェストのファイル参照を各行にマッピング
+- **レイヤー管理**: キャラクター・CG・背景をKAGレイヤーシステムで制御
+- **フロー制御**: ラベル・フラグ・選択肢・ジャンプをKAGタグで実装
+- **品質検証**: 生成スクリプトの構文確認とレビュー
+
+---
+
+## レイヤー割り当て規約
+
+| レイヤー | 用途 | 例 |
+|---------|------|---|
+| `base` | 背景 | `[image storage=bg_xxx.webp layer=base]` |
+| `0` | キャラクター1（メイン） | `[image layer=0 storage=chara_A.webp visible=true]` |
+| `1` | キャラクター2 | `[image layer=1 storage=chara_B.webp visible=true]` |
+| `2` | キャラクター3 | `[image layer=2 storage=chara_C.webp visible=true]` |
+| `3` | カットイン・演出オーバーレイ | `[image layer=3 storage=cut_01.webp visible=true]` |
+| `4` | フルスクリーンCG | `[image layer=4 storage=cg_01.webp visible=true]` |
+
+各スクリプトの先頭に、そのシナリオで使用するキャラクターのレイヤー割り当てをコメントで明記すること：
+
+```ks
+; Layer: 0=キャラA, 1=キャラB, 3=カットイン, 4=フルスクリーンCG
+```
 
 ---
 
@@ -30,147 +50,146 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 
 ## Phase 2: シナリオドラフトの解析
 
-`workspace/scenario_draft.md` の「本文」セクションを解析し、各テキストブロックを以下に分類する。
+`workspace/scenario_draft.md` の「本文」セクションを解析し、各テキストブロックを以下のKAG出力に変換する。
 
-### テキストタイプの判定
+### テキストタイプの判定とKAG出力
 
-| 内容 | ScenarioLine type |
-|------|------------------|
-| ナレーション（地の文・独白） | `type: 0`（NarrationLine） |
-| キャラクターの台詞（「」で囲まれたもの） | `type: 1`（DialogueLine） |
-| 選択肢（分岐）| `type: 2`（ChoiceLine） |
-| フラグ操作 | `type: "flag"`（FlagLine） |
-| ジャンプ | `type: "jump"`（JumpLine） |
+| 内容 | KAG出力 |
+|------|---------|
+| ナレーション（地の文・独白） | `[name]`なしでテキスト直書き + `[l]` |
+| キャラクターの台詞 | `[name text="キャラ名"]` + テキスト + `[l]` |
+| ページ送り（長いシーン区切り） | `[p]`（テキストをクリアして次へ） |
+| 選択肢 | `[glink]` × N + `[s]` |
+| フラグ操作 | `[flag name=xxx value=yyy]` |
+| ジャンプ | `[jump target=*label]` |
+| 改行（テキスト内） | `[r]` |
 
 ### 演出参照タグの解釈
 
-本文中に埋め込まれた参照タグを読み取り、対応するアセットを割り当てる。
+本文中に埋め込まれた参照タグを読み取り、対応するKAGタグを出力する。
 
-| 参照タグ形式 | 解釈 | 割り当て先 |
-|------------|------|----------|
-| `〈CG:CG_001〉` | CGマニフェストの `cg_id: "CG_001"` を参照 | `cutIn.imageFile` |
-| `〈BG:opening〉` | CGマニフェストの `backgrounds` を参照 | `backgroundFile` |
-| `〈VOICE:V001〉` | オーディオマニフェストの `voice_id: "V001"` を参照 | `voice` |
-| `〈BGM:第1幕〉` | オーディオマニフェストの `bgm` を参照 | `bgmFile` |
+| 参照タグ形式 | KAG出力 |
+|------------|---------|
+| `〈CG:CG_001〉` | `[image layer=3 storage=CG_001.webp visible=true]` |
+| `〈BG:opening〉` | `[image storage=opening.webp layer=base]` |
+| `〈VOICE:V001〉` | `[voice storage=V001.wav]` |
+| `〈BGM:第1幕〉` | `[bgm storage=第1幕.mp3]` |
+| `〈SE:name〉` | `[se storage=name.wav]` |
+| `〈FACE:emotion〉` | `[image layer=N storage=chara_XX_emotion.webp]`（N=そのキャラのレイヤー番号） |
 
 ---
 
-## Phase 3: JSON組み立て
+## Phase 3: KAGスクリプト組み立て
 
 ### 基本構造
 
-```json
-{
-  "id": "[シーンID（例：S_001）]",
-  "currentLineIndex": 0,
-  "bgmFile": "[初期BGMファイル名]",
-  "backgroundFile": "[初期背景ファイル名]",
-  "characters": [...],
-  "lines": [...],
-  "logs": []
-}
+```ks
+; S_XXX.ks — [シーン説明]
+; Layer: [レイヤー割り当て表]
+
+; --- 初期化 ---
+[image storage=bg_xxx.webp layer=base]
+[image layer=0 storage=chara_A.webp visible=true]
+
+*entry
+[bgm storage=bgm_opening.mp3]
+
+; --- 本文 ---
+ナレーションテキスト[l]
+[name text="キャラA"]
+[voice speaker=N]
+セリフテキスト[l]
 ```
 
-### characters配列の構築
+### ナレーション行
 
-シナリオドラフトの「登場人物」セクションからキャラクター情報を取得し、0始まりのindexで配列化する。
-
-```json
-{
-  "index": 0,
-  "name": "キャラ名",
-  "imageFile": "ch_キャラ略称_default.webp",
-  "isShow": true,
-  "speakerId": 0
-}
+```ks
+これは地の文です。[l]
+長い場面では[r]このように改行できます。[l]
 ```
 
-### lines配列の組み立てルール
+### ダイアログ行
 
-#### NarrationLine（type: 0）
-
-```json
-{
-  "id": "line_001",
-  "type": 0,
-  "text": "散文テキスト",
-  "cutIn": {
-    "imageFile": "cg_xxx.webp",
-    "isFullScreen": false
-  },
-  "bgmFile": "b0001.mp3"
-}
+```ks
+[name text="渚"]
+[voice speaker=3]
+こんにちは！セリフテキストです。[l]
 ```
 
-- `id` は節目となるラインにのみ付与する（全行に付与しない）
-- `cutIn` は `〈CG:XXX〉` タグが付いている場合のみ追加する
-- `bgmFile` はBGMが切り替わる行にのみ指定する
+- `[name text="xxx"]` は発話キャラが変わる行の直前に挿入する
+- `[voice speaker=N]` はVOICEVOX音声を使用する場合。音声ファイル直指定の場合は `[voice storage=xxx.wav]`
+- セリフの直後に `[l]` で待機ポイントを設ける
 
-#### DialogueLine（type: 1）
+### 選択肢
 
-```json
-{
-  "type": 1,
-  "text": "「セリフ内容」",
-  "character": {
-    "index": 0,
-    "name": "キャラ名",
-    "imageFile": "ch_xxx_emotion.webp",
-    "isShow": true
-  },
-  "voice": "l0001.wav",
-  "cutIn": {
-    "imageFile": "cg_xxx_face.webp",
-    "isFullScreen": false
-  }
-}
+```ks
+どうしますか？[r]
+[glink target=*label_a text="選択肢A"]
+[glink target=*label_b text="選択肢B"]
+[s]
+
+*label_a
+[flag name=choice_result value=a]
+[jump target=*scene_continue]
+
+*label_b
+[flag name=choice_result value=b]
+[jump target=*scene_continue]
 ```
 
-- `character.imageFile` は対応するフェーズの立ち絵差分を使用する
-- `voice` は `〈VOICE:XXX〉` タグからオーディオマニフェストを参照して取得する
+### 条件分岐
 
-#### ChoiceLine（type: 2）
-
-```json
-{
-  "id": "choice_01",
-  "type": 2,
-  "text": "どうする？",
-  "choices": [
-    { "text": "選択肢A", "jumpTo": "label_a" },
-    { "text": "選択肢B", "jumpTo": "label_b" }
-  ]
-}
+```ks
+[if exp="f.choice_result == a"]
+Aを選んだ場合のテキスト[l]
+[else]
+Bを選んだ場合のテキスト[l]
+[endif]
 ```
 
-#### FlagLine（type: "flag"）
+### BGM・SE制御
 
-```json
-{
-  "type": "flag",
-  "set": {
-    "flag_scene_cleared": true
-  }
-}
+```ks
+[bgm storage=scene_bgm.mp3]   ; BGM開始
+[stopbgm]                      ; BGM停止
+[se storage=effect.wav]        ; SE再生
 ```
 
-#### JumpLine（type: "jump"）
+### CG・レイヤー制御
 
-```json
-{
-  "type": "jump",
-  "to": "label_xxx"
-}
+```ks
+; カットイン表示
+[image layer=3 storage=cut_scene.webp visible=true left=0 top=0]
+演出テキスト[l]
+[image layer=3 visible=false]  ; カットイン非表示
+
+; フルスクリーンCG
+[image layer=4 storage=cg_climax.webp visible=true left=0 top=0]
+CGの説明テキスト[l]
+[image layer=4 visible=false]  ; CG非表示
+
+; 背景変更（クロスフェード）
+[trans method=crossfade time=800]
+[image storage=bg_new.webp layer=base]
+[wt]
+```
+
+### フラグとジャンプ
+
+```ks
+[flag name=scene_cleared value=true]
+[jump target=*next_scene]
+[jump target=*start file=S_002.ks]  ; ファイルをまたいだジャンプ
 ```
 
 ---
 
-## Phase 4: ウェイトとタイミング調整
+## Phase 4: タイミング調整
 
-以下のシーンには意図的に「静止ウィンドウ」（テキスト変化なしのライン）を挿入する。
+以下のシーンには意図的に余白行（テキストなし・`[l]`のみ）や `[wait time=N]` を挿入する。
 
-- 絶頂の直前：3〜5本の短い断片テキスト（`……`のみなど）
-- BGM切り替え直後：1〜2本の余白
+- 絶頂の直前：3〜5本の短い断片テキスト（`……`など）を `[l]` で区切る
+- BGM切り替え直後：1〜2本の余白ナレーション
 - 選択肢の直前：1本の問いかけナレーション
 
 ---
@@ -179,31 +198,57 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 
 ### チェックリスト
 
-- [ ] `lines` 配列の総数が100〜120本の範囲に収まっているか
-- [ ] 全ての `cutIn.imageFile` がcg_manifestに存在するファイル名を参照しているか
-- [ ] 全ての `voice` がaudio_manifestに存在するファイル名を参照しているか
-- [ ] `type: 2`（ChoiceLine）の `jumpTo` に対応する `id` が存在するか
-- [ ] `type: "flag"` で設定したフラグ名がフラグリストに記載されているか
-- [ ] `characters` のindexが `character.index` と一致しているか
+- [ ] 全テキスト行の末尾に `[l]` または `[p]` が付いているか
+- [ ] `[glink]` の `target` に対応する `*label` が存在するか
+- [ ] `[jump target=*xxx]` に対応する `*label` が存在するか（ファイルをまたぐ場合は `file=` を指定しているか）
+- [ ] `[if exp="f.xxx == yyy"]` で参照するフラグが事前に `[flag]` で設定されているか
+- [ ] 全ての `storage=xxx` がcg_manifestまたはaudio_manifestに存在するファイル名を参照しているか
+- [ ] KAGレイヤー割り当てがスクリプト先頭のコメントと一致しているか
+- [ ] 総テキスト行数が100〜120行の範囲に収まっているか
 
 ### レビューの実施
 
-`workspace/scenario_draft.md` の上位にある `scenario-writer/resources/review.md` を読み込み、生成したJSONが鏡裕之流の理論（禁止と侵犯・誘惑ロジック・テンションコントロール）に沿っているかをレビューする。問題があれば箇所を特定してシナリオライターに差し戻す。
+`workspace/scenario_draft.md` の上位にある `scenario-writer/resources/review.md` を読み込み、生成したスクリプトが鏡裕之流の理論（禁止と侵犯・誘惑ロジック・テンションコントロール）に沿っているかをレビューする。問題があれば箇所を特定してシナリオライターに差し戻す。
 
 ---
 
 ## Phase 6: 出力
 
-検証が通ったら最終JSONを `public/scenarios/[シーンID].json` に出力する。
+検証が通ったら最終スクリプトを `public/scenarios/[シーンID].ks` に出力する。
 
 プロデューサーに完了を報告する。報告内容：
 - 出力ファイルパス
-- 総ライン数
+- 総テキスト行数
 - 使用CGファイル数・音声ファイル数
 - 未解決の参照（アセット未生成のファイル名）があれば列挙する
 
 ---
 
-## JSON Schema Reference
+## KAG タグ早見表
 
-スクリプターが参照するJSONスキーマは `.agents/scenario-writer/` に格納されている。スキーマの詳細が必要な場合は元のSKILL.mdを参照すること。
+| タグ | 説明 |
+|------|------|
+| `[l]` | クリック待ち（行末必須） |
+| `[p]` | ページクリア＋クリック待ち |
+| `[r]` | テキスト内改行 |
+| `[cm]` | テキストバッファクリア（待機なし） |
+| `[s]` | 停止（選択肢待ちなどで使用） |
+| `[name text="xxx"]` | 話者名設定 |
+| `[image layer=N storage=xxx visible=true/false]` | レイヤー画像設定 |
+| `[bgm storage=xxx]` | BGM再生 |
+| `[stopbgm]` | BGM停止 |
+| `[se storage=xxx]` | SE再生 |
+| `[voice storage=xxx]` | 音声ファイル再生 |
+| `[voice speaker=N]` | VOICEVOX話者ID指定 |
+| `[trans method=crossfade time=N]` | トランジション設定 |
+| `[wt]` | トランジション完了待ち |
+| `[wait time=N]` | Nミリ秒待機 |
+| `[flag name=xxx value=yyy]` | フラグ設定 |
+| `[if exp="f.xxx == yyy"]` | 条件分岐 |
+| `[else]` | else節 |
+| `[endif]` | 分岐終了 |
+| `[jump target=*label]` | ラベルジャンプ |
+| `[jump target=*label file=S_XXX.ks]` | ファイルをまたいだジャンプ |
+| `[call target=*label]` | サブルーチン呼び出し |
+| `[return]` | サブルーチンから戻る |
+| `[glink target=*label text="xxx"]` | 選択肢ボタン |
