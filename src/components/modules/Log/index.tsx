@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { useNavigationStore } from "@/states/navigationStore";
-import { useScenarioStore } from "@/states/scenarioStore";
+import { useKAGScenarioStore } from "@/states/kagScenarioStore";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 
 export const Log: React.FC = () => {
   const { navigation, setNavigation } = useNavigationStore();
-  const { scenario } = useScenarioStore();
+  const logs = useKAGScenarioStore(s => s.logs);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleClose = useCallback(() => {
@@ -42,20 +42,20 @@ export const Log: React.FC = () => {
 
         {/* ログ一覧 */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-white">
-          {scenario.logs.map((log, i) => (
+          {logs.map((log, i) => (
             <div key={i} className="flex flex-col gap-1 border-l-2 border-white border-opacity-10 pl-4 py-1">
-              {log.character && (
+              {log.speakerName && (
                 <span className="text-white text-xs font-bold opacity-60 tracking-wider">
-                  {log.character.name.toUpperCase()}
+                  {log.speakerName.toUpperCase()}
                 </span>
               )}
-              <p className={`text-white text-sm leading-relaxed ${!log.character ? "italic opacity-80" : ""}`}>
+              <p className={`text-white text-sm leading-relaxed ${!log.speakerName ? "italic opacity-80" : ""}`}>
                 {log.text}
               </p>
             </div>
           ))}
 
-          {scenario.logs.length === 0 && (
+          {logs.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <p className="text-white text-opacity-40 text-sm tracking-widest italic">NO LOGS AVAILABLE</p>
             </div>

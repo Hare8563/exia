@@ -7,7 +7,14 @@
       "Bash(git commit:*)",
       "Bash(npx vitest:*)",
       "Bash(node:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep -r ^[ /f/repo/exia/krkr2doc/docs/kag3doc/contents/*.html)",
+      "Bash(find /f/repo/exia/docs -type f -name *.md)",
+      "Bash(find f:/repo/exia/krkrz -name *trans* -type f)",
+      "Bash(grep -i \"\\\\.h$\")",
+      "Bash(cargo test:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo clippy:*)"
     ]
   }
 }
