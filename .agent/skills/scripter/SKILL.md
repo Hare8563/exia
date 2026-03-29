@@ -97,7 +97,7 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 ; --- 本文 ---
 ナレーションテキスト[l]
 [name text="キャラA"]
-[voice speaker=N]
+[voice storage=chara_a_001.wav]
 セリフテキスト[l]
 ```
 
@@ -112,12 +112,12 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 
 ```ks
 [name text="渚"]
-[voice speaker=3]
+[voice storage=n0001.wav]
 こんにちは！セリフテキストです。[l]
 ```
 
 - `[name text="xxx"]` は発話キャラが変わる行の直前に挿入する
-- `[voice speaker=N]` はVOICEVOX音声を使用する場合。音声ファイル直指定の場合は `[voice storage=xxx.wav]`
+- `[voice storage=xxx.wav]` で音声ファイルを直指定する
 - セリフの直後に `[l]` で待機ポイントを設ける
 
 ### 選択肢
@@ -239,7 +239,6 @@ CGの説明テキスト[l]
 | `[stopbgm]` | BGM停止 |
 | `[se storage=xxx]` | SE再生 |
 | `[voice storage=xxx]` | 音声ファイル再生 |
-| `[voice speaker=N]` | VOICEVOX話者ID指定 |
 | `[trans method=crossfade time=N]` | トランジション設定 |
 | `[wt]` | トランジション完了待ち |
 | `[wait time=N]` | Nミリ秒待機 |
