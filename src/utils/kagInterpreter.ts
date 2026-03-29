@@ -23,7 +23,6 @@ export class KAGInterpreter {
   private choiceBuffer: { text: string; target: string }[] = []
   private callStack: number[] = []
   private macros = new Map<string, number>()      // name → body start index
-  private macroRanges = new Map<string, [number, number]>() // name → [start, end]
   private labelMap = new Map<string, number>()
   private pendingTransition: KAGDisplayFrame['transition'] | undefined
   private pendingWaitTime: number | undefined
@@ -51,7 +50,6 @@ export class KAGInterpreter {
           j++
         }
         this.macros.set(macroName, bodyStart)
-        this.macroRanges.set(macroName, [i, j])
       }
       i++
     }
@@ -78,13 +76,18 @@ export class KAGInterpreter {
   loadTokens(tokens: KagToken[], label: string, flags?: Record<string, FlagValue>) {
     this.tokens = tokens
     this.cursor = 0
-    this.macros.clear(); this.macroRanges.clear(); this.labelMap.clear()
+    this.macros.clear(); this.labelMap.clear()
     if (flags) this.flags = flags
     this.buildMaps()
     if (label) this.jumpToLabel(label)
   }
 
+  // advance() is async for API consistency with future async operations (e.g. cross-file loading)
   async advance(): Promise<KAGDisplayFrame> {
+    // If we're waiting for a transition, return current waiting frame
+    if (this.waitingTransition) {
+      return this.buildFrame(false)
+    }
     this.textBuffer = ''
     this.voiceFile = undefined
     this.voiceSpeakerId = undefined
@@ -121,8 +124,7 @@ export class KAGInterpreter {
     switch (name) {
       // Pause points
       case 'l': return 'pause'
-      case 'p':
-        return 'pause'
+      case 'p': return 'pause'
       case 's':
         return 'end'
 
@@ -260,8 +262,8 @@ export class KAGInterpreter {
       const [, key, op, rawVal] = m
       const actual = this.flags[key]
       const expected = this.parseValue(rawVal.trim().replace(/^["']|["']$/g, ''))
-      if (op === '==') return actual == expected
-      if (op === '!=') return actual != expected
+      if (op === '==') return actual === expected
+      if (op === '!=') return actual !== expected
       if (op === '>') return Number(actual) > Number(expected)
       if (op === '<') return Number(actual) < Number(expected)
       return false

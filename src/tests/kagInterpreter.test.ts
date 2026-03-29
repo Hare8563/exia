@@ -3,10 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { KAGInterpreter } from '@/utils/kagInterpreter'
 import type { KagToken } from '@/types/kag'
 
-// Helper: build a token array directly (bypasses Tauri in tests)
-function makeTokens(tokens: KagToken[]): KagToken[] {
-  return tokens
-}
 
 describe('KAGInterpreter', () => {
   describe('text and pause points', () => {
@@ -268,6 +264,58 @@ describe('KAGInterpreter', () => {
       const frame2 = await interp.advance()
       expect(frame2.text).toBe('after trans')
       expect(frame2.isWaitingTransition).toBe(false)
+    })
+
+    it('[wt] isWaitingTransition stays true until onTransitionComplete is called', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'trans', attrs: { method: 'crossfade', time: '800' } },
+        { type: 'Tag', name: 'wt', attrs: {} },
+        { type: 'Text', content: 'after' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame1 = await interp.advance()
+      expect(frame1.isWaitingTransition).toBe(true)
+      // Without onTransitionComplete, next advance returns the same waiting frame
+      const frame2 = await interp.advance()
+      expect(frame2.isWaitingTransition).toBe(true)
+      // After completing transition, advance proceeds
+      interp.onTransitionComplete()
+      const frame3 = await interp.advance()
+      expect(frame3.text).toBe('after')
+      expect(frame3.isWaitingTransition).toBe(false)
+    })
+  })
+
+  describe('additional flow and timer tests', () => {
+    it('[wait] sets isWaitingTimer and waitTime', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'wait', attrs: { time: '500' } },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.isWaitingTimer).toBe(true)
+      expect(frame.waitTime).toBe(500)
+    })
+
+    it('selectChoice() jumps to chosen label', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'glink', attrs: { target: '*option_a', text: 'A' } },
+        { type: 'Tag', name: 'glink', attrs: { target: '*option_b', text: 'B' } },
+        { type: 'Tag', name: 's', attrs: {} },
+        { type: 'Label', name: 'option_a' },
+        { type: 'Text', content: 'chose A' },
+        { type: 'Tag', name: 'l', attrs: {} },
+        { type: 'Label', name: 'option_b' },
+        { type: 'Text', content: 'chose B' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const choiceFrame = await interp.advance()
+      expect(choiceFrame.choices).toHaveLength(2)
+      interp.selectChoice('*option_b')
+      const resultFrame = await interp.advance()
+      expect(resultFrame.text).toBe('chose B')
     })
   })
 })
