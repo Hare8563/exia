@@ -126,7 +126,7 @@ export class KAGInterpreter {
       case 'l': return 'pause'
       case 'p': return 'pause'
       case 's':
-        return 'end'
+        return 'pause'
 
       // [wt] — pause and mark isWaitingTransition
       case 'wt':

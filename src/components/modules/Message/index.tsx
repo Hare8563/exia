@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useKAGScenarioManager } from './hooks/useKAGScenarioManager'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import { useNavigationStore } from '@/states/navigationStore'
@@ -24,7 +24,9 @@ export const Message: React.FC = () => {
   const [typewriterInstance, setTypewriterInstance] = useState<any>(null)
 
   // Register skip callback for Navigation's skip button
-  useSkipActionStore.getState().setSkipAction({ skipToNextChoice })
+  useEffect(() => {
+    useSkipActionStore.getState().setSkipAction({ skipToNextChoice })
+  }, [skipToNextChoice])
 
   const handleNext = useCallback(async () => {
     if (isScenarioEnd) {

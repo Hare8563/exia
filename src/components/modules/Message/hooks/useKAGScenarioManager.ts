@@ -5,9 +5,12 @@ import { loadKAGTokens } from '@/utils/kagLoader'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import type { KAGDisplayFrame, KAGLogEntry } from '@/types/kag'
 
+// Module-level singleton so all hook instances share the same interpreter
+const sharedInterpreterRef = { current: null as KAGInterpreter | null }
+
 export function useKAGScenarioManager() {
   const { setFrame } = useKAGScenarioStore()
-  const interpreterRef = useRef<KAGInterpreter | null>(null)
+  const interpreterRef = sharedInterpreterRef
   const [isScenarioEnd, setIsScenarioEnd] = useState(false)
 
   const doAdvanceRef = useRef<() => Promise<void>>(async () => {})
@@ -55,7 +58,7 @@ export function useKAGScenarioManager() {
     } catch (err) {
       const msg = String(err)
       if (msg.startsWith('Error: CROSS_FILE_JUMP:')) {
-        const [, file, target] = msg.replace('Error: CROSS_FILE_JUMP:', '').split(':')
+        const [file, target] = msg.replace('Error: CROSS_FILE_JUMP:', '').split(':')
         const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
         const label = (target ?? '').replace(/^\*/, '')
         const flags = useKAGScenarioStore.getState().flags

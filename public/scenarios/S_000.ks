@@ -1,6 +1,7 @@
 ; S_000.ks — チュートリアルシナリオ
 ; Layer: 0=渚, 1=凛, 3=カットイン, 4=フルスクリーンCG
 
+*entry
 [image storage=bg_01.webp layer=base]
 [image layer=0 storage=chara_01.webp visible=true]
 [image layer=1 storage=chara_02.webp visible=true]
@@ -14,6 +15,7 @@
 [name text="渚"]
 [voice storage=n0002.wav]
 まず、この画面のようにキャラクターがセリフを話すことができます。[r]これは「ダイアログ」モードと呼ばれています。[l]
+[name text=""]
 これは「ナレーション」モードです。ストーリーの背景説明などに使用されます。[l]
 [name text="凛"]
 [voice storage=r0001.wav]
@@ -26,11 +28,13 @@
 テキストは[r]このように改行したり、サイズを変えたりすることもできます。[l]
 
 [image layer=3 storage=cut_01.webp visible=true left=0 top=0]
+[name text=""]
 これはカットインです。特定のシーンを強調するために使用できます。[l]
 [name text="渚"]
 [voice storage=n0004.wav]
 カットインが表示されている状態でもキャラクターが会話できますね。[l]
 [image layer=3 visible=false]
+[name text=""]
 カットインを非表示にすることもできます。[l]
 
 [image layer=4 storage=cg_01.webp visible=true left=0 top=0]
@@ -39,11 +43,13 @@
 [voice storage=r0003.wav]
 CGの上にキャラクターのセリフを表示することもできます。物語の臨場感が増しますね！[l]
 [image layer=4 visible=false]
+[name text=""]
 CGを終了して、通常のシーンに戻ります。[l]
 [name text="渚"]
 [voice storage=n0005.wav]
 そして最後に、Exiaの重要な機能である「選択肢」を紹介します。[r]ユーザーは物語の進行を選ぶことができます。[l]
 
+[name text=""]
 どのような機能についてもっと知りたいですか？[r]
 [glink target=*set_feature_text text="テキストスタイルについて"]
 [glink target=*set_feature_chara text="キャラクター表示について"]
@@ -76,6 +82,7 @@ CGを終了して、通常のシーンに戻ります。[l]
 [jump target=*choice_end]
 
 *choice_end
+[name text=""]
 もう一つ説明して欲しい機能はありますか？[r]
 [glink target=*set_want_mechanism text="選択肢の仕組みについて"]
 [glink target=*set_want_end text="チュートリアルを終了する"]
@@ -118,6 +125,7 @@ CGを終了して、通常のシーンに戻ります。[l]
 [name text="凛"]
 [voice storage=r0006.wav]
 お疲れ様でした！ちなみに、最初に選んだのは...[l]
+[name text=""]
 （あなたの選択を振り返って）[l]
 [if exp="f.first_choice == text"]
 [jump target=*ending_text]
@@ -138,5 +146,6 @@ CGを終了して、通常のシーンに戻ります。[l]
 [jump target=*finale]
 
 *finale
+[name text=""]
 チュートリアル終了。メインに戻ります...[l]
 [jump target=*entry file=main.ks]

@@ -13,8 +13,9 @@ function LayerSprite({ layer }: { layer: KAGLayer }) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null)
   const { viewport } = useThree()
 
+  const imageDir = typeof layer.id === 'number' && layer.id >= 3 ? 'image' : 'fgimage'
   const texture = useTexture(
-    layer.file ? `/images/foreground/${layer.file}` : '/images/foreground/placeholder.webp'
+    layer.file ? `/images/${imageDir}/${layer.file}` : `/images/${imageDir}/placeholder.webp`
   )
 
   const targetOpacity = layer.visible ? layer.opacity / 255 : 0
@@ -29,13 +30,26 @@ function LayerSprite({ layer }: { layer: KAGLayer }) {
     meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, alpha)
     meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, targetY, alpha)
     meshRef.current.position.z = z
-    const targetScale = layer.scale * (viewport.height * 0.8)
-    meshRef.current.scale.y = THREE.MathUtils.lerp(meshRef.current.scale.y, targetScale, alpha)
-    // Maintain aspect ratio
     const img = texture.image as HTMLImageElement | undefined
-    const aspect = img?.width && img?.height
-      ? img.width / img.height : 1
-    meshRef.current.scale.x = meshRef.current.scale.y * aspect
+    const imgAspect = img?.width && img?.height ? img.width / img.height : 1
+    const isCoverLayer = typeof layer.id === 'number' && layer.id >= 3
+    let targetScaleX: number, targetScaleY: number
+    if (isCoverLayer) {
+      // Cover: fill entire viewport, crop if needed
+      const viewAspect = viewport.width / viewport.height
+      if (imgAspect >= viewAspect) {
+        targetScaleY = viewport.height * layer.scale
+        targetScaleX = targetScaleY * imgAspect
+      } else {
+        targetScaleX = viewport.width * layer.scale
+        targetScaleY = targetScaleX / imgAspect
+      }
+    } else {
+      targetScaleY = layer.scale * (viewport.height * 0.8)
+      targetScaleX = targetScaleY * imgAspect
+    }
+    meshRef.current.scale.y = THREE.MathUtils.lerp(meshRef.current.scale.y, targetScaleY, alpha)
+    meshRef.current.scale.x = THREE.MathUtils.lerp(meshRef.current.scale.x, targetScaleX, alpha)
   })
 
   return (

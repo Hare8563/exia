@@ -14,7 +14,7 @@ function BackgroundMesh({ file, opacity, onFadeComplete }: {
 }) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null)
   const { viewport } = useThree()
-  const texture = useTexture(`/images/backgrounds/${file}`)
+  const texture = useTexture(`/images/bgimage/${file}`)
 
   // Object-cover: fill viewport
   const img = texture.image as HTMLImageElement | null
