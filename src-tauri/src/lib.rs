@@ -1,3 +1,5 @@
+mod kag_parser;
+
 use std::fs;
 
 #[tauri::command]
@@ -12,11 +14,16 @@ fn save_scenario(content: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn parse_kag_text(content: String) -> Result<Vec<kag_parser::KagToken>, String> {
+    kag_parser::parse_kag_text(&content)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
-    .invoke_handler(tauri::generate_handler![save_scenario])
+    .invoke_handler(tauri::generate_handler![save_scenario, parse_kag_text])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
