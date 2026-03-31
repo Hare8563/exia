@@ -3,6 +3,7 @@ import { useRef, useCallback, useState } from 'react'
 import { KAGInterpreter } from '@/utils/kagInterpreter'
 import { loadKAGTokens } from '@/utils/kagLoader'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
+import { useNavigationStore } from '@/states/navigationStore'
 import type { KAGDisplayFrame, KAGLogEntry } from '@/types/kag'
 
 // Module-level singleton so all hook instances share the same interpreter
@@ -114,6 +115,45 @@ export function useKAGScenarioManager() {
   }, [applyFrame, sessionRef])
   doAdvanceRef.current = doAdvance
 
+  const openLog = useCallback(() => {
+    const { navigation, setNavigation } = useNavigationStore.getState()
+    setNavigation({
+      ...navigation,
+      isLogOpen: true,
+    })
+  }, [])
+
+  const closeLog = useCallback(() => {
+    const { navigation, setNavigation } = useNavigationStore.getState()
+    setNavigation({
+      ...navigation,
+      isLogOpen: false,
+    })
+  }, [])
+
+  const setAutoPlay = useCallback((enabled: boolean) => {
+    const { navigation, setNavigation } = useNavigationStore.getState()
+    setNavigation({
+      ...navigation,
+      isAutoPlay: enabled,
+    })
+    interpreterRef.current?.setKagValue('autoMode', enabled)
+  }, [interpreterRef])
+
+  const callExtraConductor = useCallback(async (file: unknown, target: unknown) => {
+    const interp = interpreterRef.current
+    if (!interp || typeof file !== 'string') return
+    try {
+      const normalizedFile = file.replace(/\.ks$/i, '')
+      const tokens = await loadKAGTokens(`scenarios/${normalizedFile}`)
+      const offset = interp.appendTokens(tokens)
+      interp.callCrossFile(offset, typeof target === 'string' ? target : '')
+      await doAdvanceRef.current()
+    } catch (error) {
+      console.warn('[KAG] callExtraConductor failed', { file, target, error })
+    }
+  }, [interpreterRef])
+
   const goToNextLine = useCallback(async () => {
     if (isScenarioEnd) return
     const interp = interpreterRef.current
@@ -161,6 +201,41 @@ export function useKAGScenarioManager() {
     applyFrame(frame)
   }, [applyFrame, setFrame])
 
+  const registerKagHandlers = useCallback((interp: KAGInterpreter) => {
+    interp.setKagHandler('callExtraConductor', (file, target) => {
+      void callExtraConductor(file, target)
+    })
+    interp.setKagHandler('enterAutoMode', () => {
+      setAutoPlay(true)
+    })
+    interp.setKagHandler('skipToStop', () => {
+      interp.setKagValue('skipMode', true)
+      void skipToNextChoice().finally(() => {
+        interp.setKagValue('skipMode', false)
+      })
+    })
+    interp.setKagHandler('showHistoryByKey', () => {
+      openLog()
+    })
+    interp.setKagHandler('onPrimaryRightClick', () => {
+      const uiState = useKAGScenarioStore.getState().uiState
+      if (!uiState.rclickEnabled) return
+      if (uiState.historyEnabled) {
+        openLog()
+      } else {
+        closeLog()
+      }
+    })
+  }, [callExtraConductor, closeLog, openLog, setAutoPlay, skipToNextChoice])
+
+  const executeButtonExp = useCallback(async (exp?: string) => {
+    if (!exp) return
+    const interp = interpreterRef.current
+    if (!interp) return
+    registerKagHandlers(interp)
+    interp.executeTjsStatement(exp)
+  }, [registerKagHandlers])
+
   const getCurrentSpeakerName = useCallback(() => {
     return useKAGScenarioStore.getState().currentSpeakerName
   }, [])
@@ -170,6 +245,7 @@ export function useKAGScenarioManager() {
     sessionRef.current += 1
     interpreterRef.current = interp
     setIsScenarioEnd(false)
+    registerKagHandlers(interp)
     // Register the onTransitionComplete callback in the store so Background3D can call it
     useKAGScenarioStore.getState().setTransitionCompleteCallback(() => {
       interpreterRef.current?.onTransitionComplete()
@@ -177,7 +253,7 @@ export function useKAGScenarioManager() {
       void doAdvanceRef.current()
     })
     void doAdvance(sessionRef.current)
-  }, [doAdvance, sessionRef])
+  }, [doAdvance, registerKagHandlers, sessionRef])
 
   return {
     goToNextLine,
@@ -187,5 +263,6 @@ export function useKAGScenarioManager() {
     getCurrentSpeakerName,
     isScenarioEnd,
     init,
+    executeButtonExp,
   }
 }

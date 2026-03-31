@@ -10,6 +10,7 @@ const LAYER_IDS: ('base' | number)[] = ['base', 0, 1, 2, 3]
 export class KAGInterpreter {
   private tokens: KagToken[]
   private cursor = 0
+  private externalKagHandlers = new Map<string, (...args: unknown[]) => unknown>()
 
   // KAG3 double-buffer: fore = currently displayed, back = prepared target for next transition
   private foreLayers = new Map<'base' | number, KAGLayer>(
@@ -102,6 +103,13 @@ export class KAGInterpreter {
 
   getFlags() { return this.flags }
   setFlag(name: string, value: FlagValue) { this.flags[name] = value }
+  setKagValue(name: string, value: FlagValue) { this.kagValues[name] = value }
+  setKagHandler(name: string, handler: (...args: unknown[]) => unknown) {
+    this.externalKagHandlers.set(name, handler)
+  }
+  executeTjsStatement(source: string) {
+    this.evalTjs(source, 'statement')
+  }
   isWaitingTransition() { return this.waitingTransition }
   isWaitingTimer() { return this.pendingWaitTime !== undefined }
   canSkipWaitingTransition() { return this.waitingTransitionCanSkip }
@@ -684,6 +692,8 @@ export class KAGInterpreter {
     const kagProxy = new Proxy(kagValues as Record<string, unknown>, {
       get: (target, prop) => {
         if (typeof prop !== 'string') return undefined
+        const externalHandler = this.externalKagHandlers.get(prop)
+        if (externalHandler) return externalHandler
         if (prop === 'f') return this.foreLayers
         if (prop === 'sf') return this.systemFlags
         if (prop === 'tf') return this.tempFlags

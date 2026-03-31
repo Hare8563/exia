@@ -544,5 +544,15 @@ describe('KAGInterpreter', () => {
       expect(button?.visible).toBe(false)
       expect(button?.layer).toBe('message8')
     })
+
+    it('exposes external kag handlers to TJS button expressions', () => {
+      const interp = new KAGInterpreter([])
+      const calls: string[] = []
+      interp.setKagHandler('callExtraConductor', (file, target) => {
+        calls.push(`${String(file)}:${String(target)}`)
+      })
+      interp.executeTjsStatement("if(kag.inStable == 1)kag.callExtraConductor('macro_message_tool.ks', '*go_title')")
+      expect(calls).toEqual(['macro_message_tool.ks:*go_title'])
+    })
   })
 })

@@ -13,7 +13,7 @@ import { useNavigationStore } from '@/states/navigationStore'
 import { SCREEN } from '@/constants'
 
 export const MainScreen: React.FC = () => {
-  const { init, goToNextLine, isScenarioEnd } = useKAGScenarioManager()
+  const { init, goToNextLine, isScenarioEnd, executeButtonExp } = useKAGScenarioManager()
   const flags = useKAGScenarioStore(s => s.flags)
   const resetScenario = useKAGScenarioStore(s => s.reset)
   const choices = useKAGScenarioStore(s => s.currentChoices)
@@ -56,13 +56,18 @@ export const MainScreen: React.FC = () => {
   const handleContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!uiState.rclickEnabled) return
     event.preventDefault()
+    const closeButton = uiState.buttons.find(button => button.visible && button.graphic === 'message_bt_close')
+    if (closeButton?.exp) {
+      void executeButtonExp(closeButton.exp)
+      return
+    }
     if (uiState.historyEnabled) {
       setNavigation({
         ...navigation,
         isLogOpen: true,
       })
     }
-  }, [navigation, setNavigation, uiState.historyEnabled, uiState.rclickEnabled])
+  }, [executeButtonExp, navigation, setNavigation, uiState.buttons, uiState.historyEnabled, uiState.rclickEnabled])
 
   return (
     <div className="relative w-full h-full cursor-pointer" onClick={handleScreenClick} onContextMenu={handleContextMenu}>

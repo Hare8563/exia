@@ -7,6 +7,7 @@ import { ArrowPathIcon } from "@heroicons/react/24/solid";
 import { SkipModal } from "../Modal/SkipModal";
 import { useScreenStore } from "@/states/screenStore";
 import { SCREEN } from "@/constants";
+import { useKAGScenarioManager } from "../Message/hooks/useKAGScenarioManager";
 
 type NavigationItem = {
   label: string;
@@ -20,9 +21,10 @@ export const Navigation: React.FC = () => {
   const { skipToNextChoice } = skipAction;
   const uiState = useKAGScenarioStore(s => s.uiState);
   const { setScreen } = useScreenStore();
+  const { executeButtonExp } = useKAGScenarioManager();
 
-  const visibleGraphics = new Set(
-    uiState.buttons.filter(button => button.visible).map(button => button.graphic)
+  const visibleButtons = new Map(
+    uiState.buttons.filter(button => button.visible).map(button => [button.graphic, button])
   );
 
   const handleAutoPlay = useCallback(() => {
@@ -42,6 +44,15 @@ export const Navigation: React.FC = () => {
   const handleTitle = useCallback(() => {
     setScreen({ screen: SCREEN.START_SCREEN });
   }, [setScreen]);
+
+  const runButtonExp = useCallback((graphic: string, fallback?: () => void) => {
+    const button = visibleButtons.get(graphic);
+    if (button?.exp) {
+      void executeButtonExp(button.exp);
+      return;
+    }
+    fallback?.();
+  }, [executeButtonExp, visibleButtons]);
 
   const handleSkipOpen = useCallback(() => {
     setNavigation({
@@ -67,16 +78,16 @@ export const Navigation: React.FC = () => {
   // ナビゲーションアイテムをメモ化
   const items = useMemo<NavigationItem[]>(
     () => [
-      { label: "SAVE", visible: visibleGraphics.has("message_bt_save") },
-      { label: "LOAD", visible: visibleGraphics.has("message_bt_load") },
-      { label: "AUTO", action: handleAutoPlay, visible: visibleGraphics.has("message_bt_auto") },
-      { label: "SKIP", action: handleSkipOpen, visible: visibleGraphics.has("message_bt_skip") },
-      { label: "LOG", action: handleLogOpen, visible: uiState.historyEnabled && visibleGraphics.has("message_bt_bklog") },
-      { label: "CONFIG", visible: visibleGraphics.has("message_bt_config") },
-      { label: "TITLE", action: handleTitle, visible: uiState.startAnchorEnabled && visibleGraphics.has("message_bt_title") },
+      { label: "SAVE", action: () => runButtonExp("message_bt_save"), visible: visibleButtons.has("message_bt_save") },
+      { label: "LOAD", action: () => runButtonExp("message_bt_load"), visible: visibleButtons.has("message_bt_load") },
+      { label: "AUTO", action: () => runButtonExp("message_bt_auto", handleAutoPlay), visible: visibleButtons.has("message_bt_auto") },
+      { label: "SKIP", action: () => runButtonExp("message_bt_skip", handleSkipOpen), visible: visibleButtons.has("message_bt_skip") },
+      { label: "LOG", action: () => runButtonExp("message_bt_bklog", handleLogOpen), visible: uiState.historyEnabled && visibleButtons.has("message_bt_bklog") },
+      { label: "CONFIG", action: () => runButtonExp("message_bt_config"), visible: visibleButtons.has("message_bt_config") },
+      { label: "TITLE", action: () => runButtonExp("message_bt_title", handleTitle), visible: uiState.startAnchorEnabled && visibleButtons.has("message_bt_title") },
       { label: "GITHUB", action: () => window.open("https://github.com/kokushin/exia") },
     ],
-    [handleAutoPlay, handleLogOpen, handleSkipOpen, handleTitle, uiState.historyEnabled, uiState.startAnchorEnabled, visibleGraphics]
+    [handleAutoPlay, handleLogOpen, handleSkipOpen, handleTitle, runButtonExp, uiState.historyEnabled, uiState.startAnchorEnabled, visibleButtons]
   );
 
   return (
