@@ -19,6 +19,7 @@ export function useKAGScenarioManager() {
 
   const doAdvanceRef = useRef<() => Promise<void>>(async () => {})
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingQuakeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const waitCanSkipRef = useRef(true)
 
   const commitTransitionToStore = useCallback(() => {
@@ -36,6 +37,8 @@ export function useKAGScenarioManager() {
       layers: committedLayers,
       isWaitingTransition: false,
       currentTransition: undefined,
+      currentMoves: undefined,
+      currentQuake: undefined,
     })
   }, [setFrame])
 
@@ -56,6 +59,8 @@ export function useKAGScenarioManager() {
       currentChoices: frame.choices,
       isWaitingTransition: frame.isWaitingTransition,
       currentTransition: frame.transition,
+      currentMoves: frame.moves,
+      currentQuake: frame.quake ?? useKAGScenarioStore.getState().currentQuake,
       uiState: frame.uiState,
       isEnd: frame.isEnd,
     }
@@ -67,6 +72,20 @@ export function useKAGScenarioManager() {
     }
 
     setFrame(updates)
+    if (pendingQuakeRef.current !== null) {
+      clearTimeout(pendingQuakeRef.current)
+      pendingQuakeRef.current = null
+    }
+    if (frame.quake) {
+      const remaining = Math.max(0, frame.quake.time - (Date.now() - frame.quake.startedAt))
+      pendingQuakeRef.current = setTimeout(() => {
+        const state = useKAGScenarioStore.getState()
+        if (state.currentQuake?.playId === frame.quake?.playId) {
+          setFrame({ currentQuake: undefined })
+        }
+        pendingQuakeRef.current = null
+      }, remaining)
+    }
     if (frame.isEnd) {
       console.warn('[KAG] frame marked isEnd=true', {
         text: frame.text,
@@ -317,6 +336,10 @@ export function useKAGScenarioManager() {
     sessionRef.current += 1
     interpreterRef.current = interp
     setIsScenarioEnd(false)
+    if (pendingQuakeRef.current !== null) {
+      clearTimeout(pendingQuakeRef.current)
+      pendingQuakeRef.current = null
+    }
     registerKagHandlers(interp)
     // Register the onTransitionComplete callback in the store so Background3D can call it
     useKAGScenarioStore.getState().setTransitionCompleteCallback(() => {

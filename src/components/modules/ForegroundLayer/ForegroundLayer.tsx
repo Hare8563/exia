@@ -3,12 +3,12 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
-import type { KAGLayer } from '@/types/kag'
+import type { KAGLayer, KAGMoveEntry } from '@/types/kag'
 
 const ANIM_SPEED = 8
 
 // Single layer sprite with animated opacity
-function LayerSprite({ layer, startOpacity }: { layer: KAGLayer; startOpacity?: number }) {
+function LayerSprite({ layer, startOpacity, move }: { layer: KAGLayer; startOpacity?: number; move?: KAGMoveEntry }) {
   const meshRef = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshBasicMaterial>(null)
   const { viewport } = useThree()
@@ -29,16 +29,28 @@ function LayerSprite({ layer, startOpacity }: { layer: KAGLayer; startOpacity?: 
 
   const targetOpacity = layer.visible ? layer.opacity / 255 : 0
   const z = 0.05 + (typeof layer.id === 'number' ? layer.id * 0.01 : 0)
+  const elapsedRef = useRef(0)
 
   useFrame((_, delta) => {
     if (!meshRef.current || !matRef.current) return
 
     const alpha = 1 - Math.exp(-delta * ANIM_SPEED)
-    matRef.current.opacity = THREE.MathUtils.lerp(matRef.current.opacity, targetOpacity, alpha)
+    const defaultOpacity = THREE.MathUtils.lerp(matRef.current.opacity, targetOpacity, alpha)
+    matRef.current.opacity = defaultOpacity
 
     const img = texture.image as HTMLImageElement | undefined
     const imgAspect = img?.width && img?.height ? img.width / img.height : 1
     const isCoverLayer = typeof layer.id === 'number' && layer.id >= 3
+
+    let renderX = layer.x
+    let renderY = layer.y
+    if (move) {
+      elapsedRef.current = Math.min(move.time, elapsedRef.current + delta * 1000)
+      const t = move.time <= 0 ? 1 : elapsedRef.current / move.time
+      renderX = THREE.MathUtils.lerp(move.startX, move.targetX, t)
+      renderY = THREE.MathUtils.lerp(move.startY, move.targetY, t)
+      matRef.current.opacity = THREE.MathUtils.lerp(move.startOpacity / 255, move.targetOpacity / 255, t)
+    }
 
     let scaleX: number, scaleY: number
     if (isCoverLayer) {
@@ -52,12 +64,12 @@ function LayerSprite({ layer, startOpacity }: { layer: KAGLayer; startOpacity?: 
       }
     } else {
       // Foot-anchored: sprite fills from top= down to screen bottom
-      scaleY = layer.scale * (1.0 - layer.y / 1080) * viewport.height
+      scaleY = layer.scale * (1.0 - renderY / 1080) * viewport.height
       scaleX = scaleY * imgAspect
     }
 
     meshRef.current.scale.set(scaleX, scaleY, 1)
-    const posX = (layer.x / 1920) * viewport.width - viewport.width / 2 + scaleX / 2
+    const posX = (renderX / 1920) * viewport.width - viewport.width / 2 + scaleX / 2
     const posY = -viewport.height / 2 + scaleY / 2
     meshRef.current.position.set(posX, posY, z)
   })
@@ -81,6 +93,7 @@ function LayerSprite({ layer, startOpacity }: { layer: KAGLayer; startOpacity?: 
 export function ForegroundLayer() {
   const layers = useKAGScenarioStore(s => s.layers.filter(l => typeof l.id === 'number'))
   const transition = useKAGScenarioStore(s => s.currentTransition)
+  const moves = useKAGScenarioStore(s => s.currentMoves ?? [])
   const transitionEntries = transition?.entries ?? []
 
   // Set of foreground layer ids currently being transitioned
@@ -94,7 +107,8 @@ export function ForegroundLayer() {
         if (!layer.file) return null
         // Hide the fore buffer for layers being transitioned (it's clear2 = transparent)
         if (transitioningIds.has(layer.id as number)) return null
-        return <LayerSprite key={layer.id} layer={layer} />
+        const move = moves.find(entry => entry.layer === layer.id)
+        return <LayerSprite key={layer.id} layer={layer} move={move} />
       })}
       {/* Back buffer layers fade in from opacity 0 during transition */}
       {transition && Array.from(transitioningIds).map(id => {

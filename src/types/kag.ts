@@ -29,6 +29,25 @@ export type KAGTransitionEntry = {
   time: number
 }
 
+export type KAGMoveEntry = {
+  layer: 'base' | number
+  time: number
+  startX: number
+  startY: number
+  startOpacity: number
+  targetX: number
+  targetY: number
+  targetOpacity: number
+}
+
+export type KAGQuakeEffect = {
+  playId: number
+  time: number
+  hmax: number
+  vmax: number
+  startedAt: number
+}
+
 // State returned after each advance() call (one "click unit")
 export type KAGDisplayFrame = {
   text: string
@@ -49,6 +68,8 @@ export type KAGDisplayFrame = {
     foreLayers: KAGLayer[]          // fore buffer snapshot at transition start
     backLayers: KAGLayer[]          // back buffer snapshot at transition start (target)
   }
+  moves?: KAGMoveEntry[]
+  quake?: KAGQuakeEffect
   isWaitingTransition: boolean
   isWaitingTimer: boolean
   waitTime?: number
@@ -76,11 +97,14 @@ export type KAGScenarioState = {
   currentChoices?: { text: string; target: string }[]
   isWaitingTransition: boolean
   currentTransition?: KAGDisplayFrame['transition']
+  currentMoves?: KAGMoveEntry[]
+  currentQuake?: KAGQuakeEffect
   isEnd: boolean
   uiState: KAGUIState
   flags: Record<string, FlagValue>
   logs: KAGLogEntry[]
   transitionCompleteCallback: (() => void) | null
+  audioWaitCompleteCallback: ((kind: 'se' | 'voice', buf: number) => void) | null
 }
 
 export type KAGUIButton = {

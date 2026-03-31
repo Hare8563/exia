@@ -761,4 +761,35 @@ describe('KAGInterpreter', () => {
       expect(parsed.actions[7].exp).toBe('kag.onPrimaryRightClick()')
     })
   })
+
+  describe('quake handling', () => {
+    it('[quake] exposes an active quake effect and [wq] waits for it', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'quake', attrs: { time: '120', hmax: '24', vmax: '12' } },
+        { type: 'Tag', name: 'wq', attrs: {} },
+      ]
+
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+
+      expect(frame.quake).toBeDefined()
+      expect(frame.quake?.hmax).toBe(24)
+      expect(frame.quake?.vmax).toBe(12)
+      expect(frame.isWaitingTimer).toBe(true)
+      expect(frame.waitTime).toBeGreaterThan(0)
+    })
+
+    it('[stopquake] clears the active quake effect', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'quake', attrs: { time: '120' } },
+        { type: 'Tag', name: 'stopquake', attrs: {} },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+
+      expect(frame.quake).toBeUndefined()
+    })
+  })
 })

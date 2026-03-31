@@ -23,6 +23,8 @@ const INITIAL: KAGScenarioState = {
   currentChoices: undefined,
   isWaitingTransition: false,
   currentTransition: undefined,
+  currentMoves: undefined,
+  currentQuake: undefined,
   isEnd: false,
   uiState: {
     historyOutput: true,
@@ -38,6 +40,7 @@ const INITIAL: KAGScenarioState = {
   flags: {},
   logs: [],
   transitionCompleteCallback: null,
+  audioWaitCompleteCallback: null,
 }
 
 type KAGScenarioStore = KAGScenarioState & {

@@ -1,5 +1,5 @@
 // src/utils/kagInterpreter.ts
-import type { KagToken, KAGLayer, KAGDisplayFrame, FlagValue, KAGUIState, KAGUIButton, KAGSEChannel, KAGTransitionEntry, KAGVoicePlayback } from '@/types/kag'
+import type { KagToken, KAGLayer, KAGDisplayFrame, FlagValue, KAGUIState, KAGUIButton, KAGSEChannel, KAGTransitionEntry, KAGVoicePlayback, KAGQuakeEffect } from '@/types/kag'
 
 const DEFAULT_LAYER = (id: 'base' | number): KAGLayer => ({
   id, file: undefined, visible: false, x: 0, y: 0, opacity: 255, scale: 1,
@@ -69,8 +69,9 @@ export class KAGInterpreter {
   private waitingTransition = false
   private waitingTransitionCanSkip = true
   private waitOriginTime = Date.now()
-  private pendingMoves = new Map<'base' | number, { x: number; y: number; opacity: number; time: number }>()
-  private pendingQuakeTime: number | undefined
+  private pendingMoves = new Map<'base' | number, { startX: number; startY: number; startOpacity: number; x: number; y: number; opacity: number; time: number }>()
+  private activeQuake: KAGQuakeEffect | undefined
+  private quakePlayId = 0
   private pendingBgmFadeTime: number | undefined
   private pendingSeFadeTimes = new Map<number, number>()
   private waitingAudio: { kind: 'se' | 'voice'; buf: number; canSkip: boolean } | undefined
@@ -152,7 +153,7 @@ export class KAGInterpreter {
       this.foreLayers.set(key, { ...existing, x: move.x, y: move.y, opacity: move.opacity })
     }
     this.pendingMoves.clear()
-    this.pendingQuakeTime = undefined
+    this.activeQuake = undefined
     this.pendingBgmFadeTime = undefined
     this.pendingSeFadeTimes.clear()
     this.clearTransitionTracking()
@@ -252,7 +253,7 @@ export class KAGInterpreter {
         this.handleMove(attrs)
         return 'continue'
       case 'quake':
-        this.pendingQuakeTime = parseInt(this.expandAttrValue(attrs.time ?? '0'))
+        this.handleQuake(attrs)
         return 'continue'
 
       case 'wt': {
@@ -438,9 +439,9 @@ export class KAGInterpreter {
         return 'pause'
       }
       case 'wq':
-        if (this.pendingQuakeTime === undefined) return 'continue'
+        if (!this.activeQuake) return 'continue'
         this.pendingWaitCanSkip = this.parseBooleanAttr(attrs.canskip, true)
-        this.pendingWaitTime = this.pendingQuakeTime
+        this.pendingWaitTime = this.getRemainingQuakeTime()
         return 'pause'
       case 'wm': {
         const moveTimes = Array.from(this.pendingMoves.values()).map(move => move.time)
@@ -463,6 +464,9 @@ export class KAGInterpreter {
       }
       case 'wa':
       case 'wv':
+        return 'continue'
+      case 'stopquake':
+        this.activeQuake = undefined
         return 'continue'
 
       case 'resetwait':
@@ -642,7 +646,40 @@ export class KAGInterpreter {
       return
     }
 
-    this.pendingMoves.set(layerKey, { x, y, opacity, time })
+    const existing = this.foreLayers.get(layerKey) ?? DEFAULT_LAYER(layerKey)
+    this.pendingMoves.set(layerKey, {
+      startX: existing.x,
+      startY: existing.y,
+      startOpacity: existing.opacity,
+      x,
+      y,
+      opacity,
+      time,
+    })
+  }
+
+  private handleQuake(attrs: Record<string, string>) {
+    const time = parseInt(this.expandAttrValue(attrs.time ?? '0'))
+    if (time <= 0) {
+      this.activeQuake = undefined
+      return
+    }
+
+    const hmax = parseInt(this.expandAttrValue(attrs.hmax ?? '10'))
+    const vmax = parseInt(this.expandAttrValue(attrs.vmax ?? '10'))
+    this.activeQuake = {
+      playId: ++this.quakePlayId,
+      time,
+      hmax,
+      vmax,
+      startedAt: Date.now(),
+    }
+  }
+
+  private getRemainingQuakeTime() {
+    if (!this.activeQuake) return 0
+    const elapsed = Date.now() - this.activeQuake.startedAt
+    return Math.max(0, this.activeQuake.time - elapsed)
   }
 
   private handleJump(attrs: Record<string, string>) {
@@ -982,6 +1019,7 @@ export class KAGInterpreter {
 
     // Snapshot running transitions for the renderer
     const transition = this.activeTransition
+    const quake = this.getRemainingQuakeTime() > 0 ? this.activeQuake : undefined
 
     const frame: KAGDisplayFrame = {
       text: this.textBuffer,
@@ -995,6 +1033,19 @@ export class KAGInterpreter {
       voiceSpeakerId: this.voiceSpeakerId,
       choices: this.choiceBuffer.length > 0 ? [...this.choiceBuffer] : undefined,
       transition,
+      moves: this.pendingMoves.size > 0
+        ? Array.from(this.pendingMoves.entries()).map(([layer, move]) => ({
+            layer,
+            time: move.time,
+            startX: move.startX,
+            startY: move.startY,
+            startOpacity: move.startOpacity,
+            targetX: move.x,
+            targetY: move.y,
+            targetOpacity: move.opacity,
+          }))
+        : undefined,
+      quake,
       isWaitingTransition: isWaiting,
       isWaitingTimer: waitTime !== undefined,
       waitTime,

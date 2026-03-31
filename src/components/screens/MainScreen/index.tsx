@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react'
+import React, { useEffect, useCallback, useRef } from 'react'
 import { loadKAGScenario } from '@/utils/kagLoader'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import { ThreeCanvas } from '@/components/ThreeCanvas'
@@ -20,9 +20,11 @@ export const MainScreen: React.FC = () => {
   const resetScenario = useKAGScenarioStore(s => s.reset)
   const choices = useKAGScenarioStore(s => s.currentChoices)
   const uiState = useKAGScenarioStore(s => s.uiState)
+  const currentQuake = useKAGScenarioStore(s => s.currentQuake)
   const navigation = useNavigationStore(s => s.navigation)
   const setNavigation = useNavigationStore(s => s.setNavigation)
   const { setScreen } = useScreenStore()
+  const screenRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let disposed = false
@@ -40,6 +42,37 @@ export const MainScreen: React.FC = () => {
       disposed = true
     }
   }, [])
+
+  useEffect(() => {
+    const element = screenRef.current
+    if (!element) return
+    if (!currentQuake) {
+      element.style.transform = ''
+      return
+    }
+
+    let frameId = 0
+    const animate = () => {
+      const elapsed = Date.now() - currentQuake.startedAt
+      const progress = Math.min(1, elapsed / currentQuake.time)
+      const decay = 1 - progress
+      const angle = elapsed / 16
+      const offsetX = Math.sin(angle * 1.7) * currentQuake.hmax * decay
+      const offsetY = Math.cos(angle * 2.1) * currentQuake.vmax * decay
+      element.style.transform = `translate(${offsetX}px, ${offsetY}px)`
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(animate)
+      } else {
+        element.style.transform = ''
+      }
+    }
+
+    frameId = window.requestAnimationFrame(animate)
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      element.style.transform = ''
+    }
+  }, [currentQuake])
 
   const handleScreenClick = useCallback(async () => {
     console.info('[MainScreen] screen click', {
@@ -73,14 +106,16 @@ export const MainScreen: React.FC = () => {
 
   return (
     <div className="relative w-full h-full cursor-pointer" onClick={handleScreenClick} onContextMenu={handleContextMenu}>
-      <Voice />
-      <Bgm />
-      <Se />
-      <ThreeCanvas />
-      <ClickableMap />
-      <Message />
-      <Navigation />
-      <Log />
+      <div ref={screenRef} className="relative w-full h-full will-change-transform">
+        <Voice />
+        <Bgm />
+        <Se />
+        <ThreeCanvas />
+        <ClickableMap />
+        <Message />
+        <Navigation />
+        <Log />
+      </div>
     </div>
   )
 }
