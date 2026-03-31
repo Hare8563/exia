@@ -31,14 +31,15 @@ export type KAGDisplayFrame = {
   choices?: { text: string; target: string }[]
   transition?: {
     method: string                  // 'crossfade' | 'scroll' | 'dissolve'
-    time: number                    // ms
-    layer?: 'base' | number         // undefined = background (base)
+    time: number                    // ms (max of all running transitions)
+    layers: ('base' | number)[]     // layers being transitioned
     foreLayers: KAGLayer[]          // fore buffer snapshot at transition start
     backLayers: KAGLayer[]          // back buffer snapshot at transition start (target)
   }
   isWaitingTransition: boolean
   isWaitingTimer: boolean
   waitTime?: number
+  waitCanSkip: boolean
   isEnd: boolean
 }
 

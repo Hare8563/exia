@@ -1,5 +1,5 @@
 // src/tests/kagInterpreter.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { KAGInterpreter } from '@/utils/kagInterpreter'
 import type { KagToken } from '@/types/kag'
 
@@ -54,14 +54,15 @@ describe('KAGInterpreter', () => {
       expect(frame.text).toBe('new')
     })
 
-    it('[s] marks isEnd', async () => {
+    it('[s] pauses execution without ending the scenario', async () => {
       const tokens: KagToken[] = [
         { type: 'Text', content: 'end' },
         { type: 'Tag', name: 's', attrs: {} },
       ]
       const interp = new KAGInterpreter(tokens)
       const frame = await interp.advance()
-      expect(frame.isEnd).toBe(true)
+      expect(frame.isEnd).toBe(false)
+      expect(frame.text).toBe('end')
     })
 
     it('[name] sets speakerName', async () => {
@@ -97,6 +98,16 @@ describe('KAGInterpreter', () => {
       const interp = new KAGInterpreter(tokens)
       const frame = await interp.advance()
       expect(frame.text).toBe('text')
+    })
+
+    it('marks isEnd when the token stream is exhausted', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Text', content: 'fin' },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('fin')
+      expect(frame.isEnd).toBe(true)
     })
   })
 
@@ -168,6 +179,17 @@ describe('KAGInterpreter', () => {
       const interp = new KAGInterpreter(tokens)
       const frame = await interp.advance()
       expect(frame.text).toBe('reached')
+    })
+
+    it('[jump] without target restarts from the beginning of the current file', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'jump', attrs: {} },
+        { type: 'Text', content: 'head' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('head')
     })
 
     it('[if] true branch executes', async () => {
@@ -244,6 +266,53 @@ describe('KAGInterpreter', () => {
       const frame2 = await interp.advance() // returns, continues
       expect(frame2.text).toBe('after')
     })
+
+    it('[return target=*label] jumps to the requested in-file destination', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'call', attrs: { target: '*sub' } },
+        { type: 'Text', content: 'after' },
+        { type: 'Tag', name: 'l', attrs: {} },
+        { type: 'Label', name: 'target' },
+        { type: 'Text', content: 'rerouted' },
+        { type: 'Tag', name: 'l', attrs: {} },
+        { type: 'Label', name: 'sub' },
+        { type: 'Text', content: 'sub_text' },
+        { type: 'Tag', name: 'l', attrs: {} },
+        { type: 'Tag', name: 'return', attrs: { target: '*target' } },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame1 = await interp.advance()
+      expect(frame1.text).toBe('sub_text')
+      const frame2 = await interp.advance()
+      expect(frame2.text).toBe('rerouted')
+    })
+
+    it('honors cond on normal tags', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'flag', attrs: { name: 'show', value: 'false' } },
+        { type: 'Tag', name: 'name', attrs: { text: 'Alice', cond: 'f.show == true' } },
+        { type: 'Text', content: 'Hi' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.speakerName).toBeUndefined()
+      expect(frame.text).toBe('Hi')
+    })
+
+    it('expands macro parameter defaults with %param|default', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'macro', attrs: { name: 'sayname' } },
+        { type: 'Tag', name: 'name', attrs: { text: '%who|Narrator' } },
+        { type: 'Tag', name: 'endmacro', attrs: {} },
+        { type: 'Tag', name: 'sayname', attrs: {} },
+        { type: 'Text', content: 'hello' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.speakerName).toBe('Narrator')
+    })
   })
 
   describe('[trans] and [wt]', () => {
@@ -296,6 +365,28 @@ describe('KAGInterpreter', () => {
       const frame = await interp.advance()
       expect(frame.isWaitingTimer).toBe(true)
       expect(frame.waitTime).toBe(500)
+      expect(frame.waitCanSkip).toBe(true)
+    })
+
+    it('[wait canskip=false] reports a non-skippable wait', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'wait', attrs: { time: '500', canskip: 'false' } },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.isWaitingTimer).toBe(true)
+      expect(frame.waitCanSkip).toBe(false)
+    })
+
+    it('[wt canskip=false] reports a non-skippable transition wait', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'trans', attrs: { method: 'crossfade', time: '800' } },
+        { type: 'Tag', name: 'wt', attrs: { canskip: 'false' } },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.isWaitingTransition).toBe(true)
+      expect(frame.waitCanSkip).toBe(false)
     })
 
     it('selectChoice() jumps to chosen label', async () => {

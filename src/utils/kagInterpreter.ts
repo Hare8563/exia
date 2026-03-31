@@ -24,6 +24,7 @@ export class KAGInterpreter {
   private macroParamStack: Record<string, string>[] = [] // mp.xxx per call depth
   private textBuffer = ''
   private speakerName: string | undefined
+  private currentMessageLayer = 'message0'
   private voiceFile: string | undefined
   private voiceSpeakerId: number | undefined
   private seFile: string | undefined
@@ -33,13 +34,13 @@ export class KAGInterpreter {
   private macros = new Map<string, number>()
   private labelMap = new Map<string, number>()
 
-  // Transition queue: [trans] pushes, [wt] pops one and activates it
-  private pendingTransitions: Array<{ method: string; time: number; layer?: 'base' | number }> = []
-  // Currently active transition (popped from queue on [wt])
-  private activeTransition: { method: string; time: number; layer?: 'base' | number } | undefined
-  private lastTransitionLayer: 'base' | number | undefined
+  // Running transitions: [trans] adds immediately, [wt] waits for all to complete
+  private runningTransitions: Array<{ method: string; time: number; layer?: 'base' | number }> = []
   private pendingWaitTime: number | undefined
+  private pendingWaitCanSkip = true
   private waitingTransition = false
+  private waitingTransitionCanSkip = true
+  private waitOriginTime = Date.now()
 
   constructor(tokens: KagToken[], flags?: Record<string, FlagValue>) {
     this.tokens = tokens
@@ -89,15 +90,32 @@ export class KAGInterpreter {
   getFlags() { return this.flags }
   setFlag(name: string, value: FlagValue) { this.flags[name] = value }
   isWaitingTransition() { return this.waitingTransition }
+  isWaitingTimer() { return this.pendingWaitTime !== undefined }
+  canSkipWaitingTransition() { return this.waitingTransitionCanSkip }
+  canSkipWaitingTimer() { return this.pendingWaitCanSkip }
 
+  // Called when foreground-layer timer completes (or skipped by user click)
+  onForegroundTransitionComplete() {
+    for (const t of this.runningTransitions) {
+      const key = t.layer
+      if (key !== undefined && key !== 'base') {
+        const back = this.backLayers.get(key)
+        if (back) this.foreLayers.set(key, { ...back })
+      }
+    }
+    this.runningTransitions = []
+  }
+
+  // Called when background (base) transition completes (click or renderer callback)
   onTransitionComplete() {
     this.waitingTransition = false
-    // Copy back → fore for the layer that just transitioned
-    const key = this.lastTransitionLayer ?? 'base'
-    const back = this.backLayers.get(key)
-    if (back) this.foreLayers.set(key, { ...back })
-    this.lastTransitionLayer = undefined
-    this.activeTransition = undefined
+    this.waitingTransitionCanSkip = true
+    for (const t of this.runningTransitions) {
+      const key = t.layer ?? 'base'
+      const back = this.backLayers.get(key)
+      if (back) this.foreLayers.set(key, { ...back })
+    }
+    this.runningTransitions = []
   }
 
   getLayersArray(): KAGLayer[] { return Array.from(this.foreLayers.values()) }
@@ -150,25 +168,35 @@ export class KAGInterpreter {
       }
     }
 
-    return this.buildFrame(false)
+    return this.buildFrame(this.cursor >= this.tokens.length)
   }
 
   private handleTag(
     name: string,
     attrs: Record<string, string>
   ): 'continue' | 'pause' | 'end' {
+    if (this.shouldSkipByCond(name, attrs)) {
+      return 'continue'
+    }
+
     switch (name) {
       case 'l': return 'pause'
       case 'p': return 'pause'
       case 's': return 'pause'
 
       case 'wt': {
-        if (this.pendingTransitions.length === 0) return 'continue'
-        // Pop one transition from the queue and activate it
-        const trans = this.pendingTransitions.shift()!
-        this.activeTransition = trans
-        this.lastTransitionLayer = trans.layer
-        this.waitingTransition = true
+        if (this.runningTransitions.length === 0) return 'continue'
+        const hasBase = this.runningTransitions.some(t => t.layer === undefined || t.layer === 'base')
+        this.waitingTransitionCanSkip = this.parseBooleanAttr(attrs.canskip, true)
+        if (hasBase) {
+          // Base layer: renderer drives completion via onTransitionComplete callback
+          this.waitingTransition = true
+          return 'pause'
+        }
+        // Foreground layers only: auto-complete via timer
+        const maxTime = Math.max(...this.runningTransitions.map(t => t.time))
+        this.pendingWaitTime = maxTime
+        this.pendingWaitCanSkip = this.waitingTransitionCanSkip
         return 'pause'
       }
 
@@ -176,6 +204,18 @@ export class KAGInterpreter {
       case 'cm': this.textBuffer = ''; return 'continue'
       case 'er': this.textBuffer = ''; return 'continue'
       case 'name': this.speakerName = this.expandAttrValue(attrs.text ?? ''); return 'continue'
+
+      case 'current':
+        if (attrs.layer) this.currentMessageLayer = attrs.layer
+        return 'continue'
+
+      case 'ch':
+        // [ch text=xxx] on message1 layer = set speaker name
+        if (this.currentMessageLayer === 'message1' && attrs.text !== undefined) {
+          const t = this.expandAttrValue(attrs.text)
+          this.speakerName = t || undefined
+        }
+        return 'continue'
 
       case 'image': this.applyImageTag(attrs); return 'continue'
 
@@ -199,27 +239,40 @@ export class KAGInterpreter {
       case 'fadeoutbgm': case 'stopbgm2':
         this.bgmFile = undefined
         return 'continue'
-      case 'playse': case 'fadeinse':
-        if (attrs.storage) this.seFile = attrs.storage
+      case 'playse': case 'fadeinse': {
+        const storage = attrs.storage ? this.expandAttrValue(attrs.storage) : undefined
+        if (storage) {
+          // buf 2+ are voice buffers (per KAG3 macro convention)
+          const buf = attrs.buf !== undefined ? parseInt(attrs.buf) : 1
+          if (buf >= 2) this.voiceFile = storage
+          else this.seFile = storage
+        }
         return 'continue'
+      }
       case 'stopse': case 'fadeoutse': case 'seopt': case 'bgmopt':
         return 'continue'
 
       case 'trans':
-        this.pendingTransitions.push({
-          method: attrs.method ?? 'crossfade',
+        // [trans] starts the transition immediately; [wt] waits for completion
+        this.runningTransitions.push({
+          method: attrs.method ?? 'universal',
           time: parseInt(attrs.time ?? '800'),
           layer: attrs.layer === 'base' ? 'base' : attrs.layer !== undefined ? parseInt(attrs.layer) : undefined,
         })
         return 'continue'
 
       case 'wait':
-        this.pendingWaitTime = parseInt(attrs.time ?? '0')
+        this.pendingWaitCanSkip = this.parseBooleanAttr(attrs.canskip, true)
+        this.pendingWaitTime = this.resolveWaitTime(attrs)
         return 'pause'
+
+      case 'resetwait':
+        this.waitOriginTime = Date.now()
+        return 'continue'
 
       case 'jump': this.handleJump(attrs); return 'continue'
       case 'call': this.handleCall(attrs); return 'continue'
-      case 'return': this.handleReturn(); return 'continue'
+      case 'return': this.handleReturn(attrs); return 'continue'
       case 'if': this.handleIf(attrs); return 'continue'
       case 'else': case 'elsif': this.skipToEndif(); return 'continue'
       case 'endif': return 'continue'
@@ -233,11 +286,13 @@ export class KAGInterpreter {
         this.choiceBuffer.push({ text: attrs.text ?? '', target: attrs.target ?? '' })
         return 'continue'
 
+      case 'layopt': this.handleLayopt(attrs); return 'continue'
+
       // KAG3 no-ops
       case 'ws': case 'wb': case 'wq': case 'wv':
       case 'hact': case 'endhact':
-      case 'layopt': case 'laycount': case 'position': case 'current':
-      case 'ch': case 'kanji': case 'hr': case 'locate': case 'style': case 'font':
+      case 'laycount': case 'position':
+      case 'kanji': case 'hr': case 'locate': case 'style': case 'font':
       case 'wm':
         return 'continue'
 
@@ -252,12 +307,25 @@ export class KAGInterpreter {
     }
   }
 
+  private shouldSkipByCond(name: string, attrs: Record<string, string>): boolean {
+    if (attrs.cond === undefined) return false
+    if (name === 'macro' || name === 'endmacro' || name === 'if' || name === 'else' ||
+        name === 'elsif' || name === 'endif' || name === 'ignore' || name === 'endignore' ||
+        name === 'iscript' || name === 'endscript') {
+      return false
+    }
+    return !this.evalExp(attrs.cond)
+  }
+
   private expandAttrValue(val: string): string {
     if (!val) return val
     if (val.startsWith('%')) {
-      const paramName = val.slice(1)
+      const expr = val.slice(1)
+      const [paramName, defaultValue] = expr.split('|', 2)
       const params = this.macroParamStack[this.macroParamStack.length - 1]
-      return String(params?.[paramName] ?? '')
+      const paramValue = params?.[paramName]
+      if (paramValue !== undefined) return String(paramValue)
+      return defaultValue !== undefined ? this.expandAttrValue(defaultValue) : ''
     }
     if (val.startsWith('&')) {
       const expr = val.slice(1)
@@ -278,15 +346,17 @@ export class KAGInterpreter {
     return val
   }
 
-  private applyToBuffer(existing: KAGLayer, attrs: Record<string, string>, isPlaceholder: boolean, storageRaw: string | undefined): KAGLayer {
-    const storage = isPlaceholder ? existing.file : storageRaw
+  private applyToBuffer(existing: KAGLayer, attrs: Record<string, string>, storageRaw: string | undefined): KAGLayer {
+    // clear2/white/clear3 = KAG3 built-in transparent bitmaps.
+    // They make the layer transparent but the layer itself is visible (visible= attr respected as-is).
+    // We store file=undefined so the renderer skips texture loading and renders nothing.
+    const isTransparentPlaceholder = storageRaw === 'clear2' || storageRaw === 'white' || storageRaw === 'clear3'
+    const file = isTransparentPlaceholder ? undefined : (storageRaw ?? existing.file)
     const visibleAttr = attrs.visible !== undefined ? this.expandAttrValue(attrs.visible) : undefined
-    const visible = isPlaceholder ? false
-      : visibleAttr !== undefined ? visibleAttr === 'true'
-      : existing.visible
+    const visible = visibleAttr !== undefined ? visibleAttr === 'true' : existing.visible
     return {
       ...existing,
-      file: storage ?? existing.file,
+      file,
       visible,
       x: attrs.left !== undefined ? parseInt(this.expandAttrValue(attrs.left)) : existing.x,
       y: attrs.top !== undefined ? parseInt(this.expandAttrValue(attrs.top)) : existing.y,
@@ -299,18 +369,17 @@ export class KAGInterpreter {
     const page = attrs.page ?? 'fore'
 
     const storageRaw = attrs.storage !== undefined ? this.expandAttrValue(attrs.storage) : undefined
-    const isPlaceholder = storageRaw === 'clear2' || storageRaw === 'white' || storageRaw === 'clear3'
 
     if (page === 'fore') {
       const existing = this.foreLayers.get(layerKey) ?? DEFAULT_LAYER(layerKey)
-      this.foreLayers.set(layerKey, this.applyToBuffer(existing, attrs, isPlaceholder, storageRaw))
+      this.foreLayers.set(layerKey, this.applyToBuffer(existing, attrs, storageRaw))
     } else if (page === 'back') {
       const existing = this.backLayers.get(layerKey) ?? DEFAULT_LAYER(layerKey)
-      this.backLayers.set(layerKey, this.applyToBuffer(existing, attrs, isPlaceholder, storageRaw))
+      this.backLayers.set(layerKey, this.applyToBuffer(existing, attrs, storageRaw))
     } else {
       // No page specified — apply to fore only (direct display)
       const existing = this.foreLayers.get(layerKey) ?? DEFAULT_LAYER(layerKey)
-      this.foreLayers.set(layerKey, this.applyToBuffer(existing, attrs, isPlaceholder, storageRaw))
+      this.foreLayers.set(layerKey, this.applyToBuffer(existing, attrs, storageRaw))
     }
   }
 
@@ -329,28 +398,72 @@ export class KAGInterpreter {
     else if (page === 'back') this.backLayers.set(key, DEFAULT_LAYER(key))
   }
 
+  // [layopt]: update layer visibility/opacity without clearing content
+  private handleLayopt(attrs: Record<string, string>) {
+    const layerStr = attrs.layer ?? ''
+    // Only handle image layers (base or 0-9); message layers are no-ops
+    if (layerStr !== 'base' && !/^\d+$/.test(layerStr)) return
+    const key: 'base' | number = layerStr === 'base' ? 'base' : parseInt(layerStr)
+    const page = attrs.page ?? 'fore'
+    const buf = page === 'back' ? this.backLayers : this.foreLayers
+    const existing = buf.get(key) ?? DEFAULT_LAYER(key)
+    const updated = { ...existing }
+    if (attrs.visible !== undefined) updated.visible = attrs.visible === 'true'
+    if (attrs.opacity !== undefined) updated.opacity = parseInt(attrs.opacity)
+    if (attrs.left !== undefined) updated.x = parseInt(attrs.left)
+    if (attrs.top !== undefined) updated.y = parseInt(attrs.top)
+    buf.set(key, updated)
+  }
+
   private handleJump(attrs: Record<string, string>) {
-    if (attrs.file) {
-      throw new Error(`CROSS_FILE_JUMP:${attrs.file}:${attrs.target ?? ''}`)
+    if (attrs.storage) {
+      throw new Error(`CROSS_FILE_JUMP:${attrs.storage}:${attrs.target ?? ''}`)
     }
-    const label = (attrs.target ?? '').replace(/^\*/, '')
-    this.jumpToLabel(label)
+    if (attrs.target) {
+      const label = attrs.target.replace(/^\*/, '')
+      this.jumpToLabel(label)
+    } else {
+      this.cursor = 0
+    }
   }
 
   private handleCall(attrs: Record<string, string>) {
     if (attrs.storage) {
       throw new Error(`CROSS_FILE_CALL:${attrs.storage}:${attrs.target ?? ''}`)
     }
-    const label = (attrs.target ?? '').replace(/^\*/, '')
     this.callStack.push(this.cursor)
     this.macroParamStack.push({})
-    this.jumpToLabel(label)
+    if (attrs.target) {
+      const label = attrs.target.replace(/^\*/, '')
+      this.jumpToLabel(label)
+    } else {
+      this.cursor = 0
+    }
   }
 
-  private handleReturn() {
+  private handleReturn(attrs?: Record<string, string>) {
+    if (attrs?.storage) {
+      throw new Error(`CROSS_FILE_RETURN:${attrs.storage}:${attrs?.target ?? ''}`)
+    }
+
     const ret = this.callStack.pop()
-    if (ret !== undefined) this.cursor = ret
     this.macroParamStack.pop()
+    if (attrs?.target) {
+      const label = attrs.target.replace(/^\*/, '')
+      this.jumpToLabel(label)
+      return
+    }
+    if (ret !== undefined) this.cursor = ret
+  }
+
+  returnCrossFile(offset: number, target: string) {
+    this.callStack.pop()
+    this.macroParamStack.pop()
+    this.cursor = offset
+    if (target) {
+      const label = target.replace(/^\*/, '')
+      this.jumpToLabel(label)
+    }
   }
 
   private handleIf(attrs: Record<string, string>) {
@@ -453,18 +566,36 @@ export class KAGInterpreter {
     return isNaN(n) ? v : n
   }
 
+  private parseBooleanAttr(value: string | undefined, defaultValue: boolean): boolean {
+    if (value === undefined) return defaultValue
+    const expanded = this.expandAttrValue(value)
+    if (expanded === 'true') return true
+    if (expanded === 'false') return false
+    return defaultValue
+  }
+
+  private resolveWaitTime(attrs: Record<string, string>): number {
+    const rawTime = parseInt(this.expandAttrValue(attrs.time ?? '0'))
+    if ((attrs.mode ?? 'normal') !== 'until') {
+      return rawTime
+    }
+    const elapsed = Date.now() - this.waitOriginTime
+    return Math.max(0, rawTime - elapsed)
+  }
+
   private buildFrame(isEnd: boolean): KAGDisplayFrame {
-    const trans = this.activeTransition
     const isWaiting = this.waitingTransition
 
     const waitTime = this.pendingWaitTime
+    const waitCanSkip = isWaiting ? this.waitingTransitionCanSkip : this.pendingWaitCanSkip
     this.pendingWaitTime = undefined
+    this.pendingWaitCanSkip = true
 
-    // Snapshot fore and back at the moment the transition starts
-    const transition = trans ? {
-      method: trans.method,
-      time: trans.time,
-      layer: trans.layer,
+    // Snapshot running transitions for the renderer
+    const transition = this.runningTransitions.length > 0 ? {
+      method: this.runningTransitions[0].method,
+      time: Math.max(...this.runningTransitions.map(t => t.time)),
+      layers: this.runningTransitions.map(t => t.layer ?? 'base' as 'base' | number),
       foreLayers: Array.from(this.foreLayers.values()).map(l => ({ ...l })),
       backLayers: Array.from(this.backLayers.values()).map(l => ({ ...l })),
     } : undefined
@@ -482,6 +613,7 @@ export class KAGInterpreter {
       isWaitingTransition: isWaiting,
       isWaitingTimer: waitTime !== undefined,
       waitTime,
+      waitCanSkip,
       isEnd,
     }
     this.choiceBuffer = []

@@ -14,18 +14,35 @@ import { SCREEN } from '@/constants'
 export const MainScreen: React.FC = () => {
   const { init, goToNextLine, isScenarioEnd } = useKAGScenarioManager()
   const flags = useKAGScenarioStore(s => s.flags)
+  const resetScenario = useKAGScenarioStore(s => s.reset)
   const choices = useKAGScenarioStore(s => s.currentChoices)
   const { setScreen } = useScreenStore()
 
   useEffect(() => {
+    let disposed = false
+    resetScenario()
+
     loadKAGScenario('scenarios/main', flags)
-      .then(interp => init(interp))
-      .catch(console.error)
+      .then(interp => {
+        if (disposed) return
+        console.info('[MainScreen] scenario loaded: scenarios/main')
+        init(interp)
+      })
+      .catch(err => console.error('[MainScreen] scenario load failed:', err))
+
+    return () => {
+      disposed = true
+    }
   }, [])
 
   const handleScreenClick = useCallback(async () => {
+    console.info('[MainScreen] screen click', {
+      hasChoices: !!choices,
+      isScenarioEnd,
+    })
     if (choices) return  // choice UI handles its own clicks
     if (isScenarioEnd) {
+      console.warn('[MainScreen] transitioning to ENDING_SCREEN')
       setScreen({ screen: SCREEN.ENDING_SCREEN })
       return
     }

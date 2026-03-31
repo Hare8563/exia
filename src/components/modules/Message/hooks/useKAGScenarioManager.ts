@@ -7,15 +7,21 @@ import type { KAGDisplayFrame, KAGLogEntry } from '@/types/kag'
 
 // Module-level singleton so all hook instances share the same interpreter
 const sharedInterpreterRef = { current: null as KAGInterpreter | null }
+const sharedSessionRef = { current: 0 }
 
 export function useKAGScenarioManager() {
   const { setFrame } = useKAGScenarioStore()
   const interpreterRef = sharedInterpreterRef
+  const sessionRef = sharedSessionRef
   const [isScenarioEnd, setIsScenarioEnd] = useState(false)
 
   const doAdvanceRef = useRef<() => Promise<void>>(async () => {})
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const waitCanSkipRef = useRef(true)
 
-  const applyFrame = useCallback((frame: KAGDisplayFrame) => {
+  const applyFrame = useCallback((frame: KAGDisplayFrame, sessionId = sessionRef.current) => {
+    if (sessionId !== sessionRef.current) return
+
     // Ensure new foreground layers requested in the frame exist in store
     const updates: Parameters<typeof setFrame>[0] = {
       layers: frame.layers,
@@ -38,28 +44,50 @@ export function useKAGScenarioManager() {
     }
 
     setFrame(updates)
-    if (frame.isEnd) setIsScenarioEnd(true)
+    if (frame.isEnd) {
+      console.warn('[KAG] frame marked isEnd=true', {
+        text: frame.text,
+        choices: frame.choices?.length ?? 0,
+        isWaitingTransition: frame.isWaitingTransition,
+        isWaitingTimer: frame.isWaitingTimer,
+      })
+      setIsScenarioEnd(true)
+    } else {
+      console.info('[KAG] frame applied', {
+        text: frame.text,
+        choices: frame.choices?.length ?? 0,
+        isWaitingTransition: frame.isWaitingTransition,
+        isWaitingTimer: frame.isWaitingTimer,
+        hasTransition: !!frame.transition,
+      })
+    }
+    waitCanSkipRef.current = frame.waitCanSkip
 
-    // Handle [wait time=N] timer
+    // Handle [wait time=N] timer (also used for foreground [wt] auto-complete)
     if (frame.isWaitingTimer && frame.waitTime) {
-      setTimeout(() => {
-        interpreterRef.current?.onTransitionComplete() // reuse same callback for timer
+      pendingTimerRef.current = setTimeout(() => {
+        pendingTimerRef.current = null
+        interpreterRef.current?.onForegroundTransitionComplete()
         void doAdvanceRef.current()
       }, frame.waitTime)
     }
-  }, [setFrame])
+  }, [setFrame, sessionRef])
 
-  const doAdvance = useCallback(async () => {
+  const doAdvance = useCallback(async (sessionId = sessionRef.current) => {
+    if (sessionId !== sessionRef.current) return
     const interp = interpreterRef.current
     if (!interp) return
     try {
       const frame = await interp.advance()
-      applyFrame(frame)
+      if (sessionId !== sessionRef.current) return
+      applyFrame(frame, sessionId)
     } catch (err) {
+      if (sessionId !== sessionRef.current) return
       const msg = String(err)
       if (msg.startsWith('Error: CROSS_FILE_JUMP:')) {
         const [file, target] = msg.replace('Error: CROSS_FILE_JUMP:', '').split(':')
         const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
+        if (sessionId !== sessionRef.current) return
         const label = (target ?? '').replace(/^\*/, '')
         const flags = useKAGScenarioStore.getState().flags
         interp.loadTokens(tokens, label, flags)
@@ -67,21 +95,37 @@ export function useKAGScenarioManager() {
       } else if (msg.startsWith('Error: CROSS_FILE_CALL:')) {
         const [file, target] = msg.replace('Error: CROSS_FILE_CALL:', '').split(':')
         const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
+        if (sessionId !== sessionRef.current) return
         const offset = interp.appendTokens(tokens)
         interp.callCrossFile(offset, target ?? '')
         await doAdvanceRef.current()
+      } else if (msg.startsWith('Error: CROSS_FILE_RETURN:')) {
+        const [file, target] = msg.replace('Error: CROSS_FILE_RETURN:', '').split(':')
+        const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
+        if (sessionId !== sessionRef.current) return
+        const offset = interp.appendTokens(tokens)
+        interp.returnCrossFile(offset, target ?? '')
+        await doAdvanceRef.current()
       } else {
-        console.error('KAG advance error:', err)
+        console.error('[KAG] advance error:', err)
       }
     }
-  }, [applyFrame])
+  }, [applyFrame, sessionRef])
   doAdvanceRef.current = doAdvance
 
   const goToNextLine = useCallback(async () => {
     if (isScenarioEnd) return
     const interp = interpreterRef.current
+    // Cancel any pending foreground timer
+    if (pendingTimerRef.current !== null) {
+      if (!waitCanSkipRef.current) return
+      clearTimeout(pendingTimerRef.current)
+      pendingTimerRef.current = null
+      interp?.onForegroundTransitionComplete()
+    }
     if (interp?.isWaitingTransition()) {
-      // [wt canskip=true]: user clicked during transition — skip it immediately
+      if (!interp.canSkipWaitingTransition()) return
+      // [wt canskip=true]: user clicked during background transition — skip it immediately
       interp.onTransitionComplete()
       setFrame({ isWaitingTransition: false, currentTransition: undefined })
     }
@@ -122,6 +166,7 @@ export function useKAGScenarioManager() {
 
   // Call this once after loading the interpreter
   const init = useCallback((interp: KAGInterpreter) => {
+    sessionRef.current += 1
     interpreterRef.current = interp
     setIsScenarioEnd(false)
     // Register the onTransitionComplete callback in the store so Background3D can call it
@@ -130,8 +175,8 @@ export function useKAGScenarioManager() {
       useKAGScenarioStore.getState().setFrame({ isWaitingTransition: false, currentTransition: undefined })
       void doAdvanceRef.current()
     })
-    void doAdvance()
-  }, [doAdvance])
+    void doAdvance(sessionRef.current)
+  }, [doAdvance, sessionRef])
 
   return {
     goToNextLine,

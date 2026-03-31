@@ -16,8 +16,11 @@ pub fn parse_kag_text(content: &str) -> Result<Vec<KagToken>, String> {
     let lines: Vec<&str> = content.split('\n').collect();
 
     for line in lines {
-        let line = line.trim_end_matches('\r');
-        if line.is_empty() {
+        let raw_line = line.trim_end_matches('\r');
+        let trimmed_line = raw_line.trim();
+        let line = raw_line.trim_start();
+
+        if trimmed_line.is_empty() {
             tokens.push(KagToken::Newline);
             continue;
         }
@@ -42,7 +45,8 @@ pub fn parse_kag_text(content: &str) -> Result<Vec<KagToken>, String> {
             tokens.push(KagToken::Newline);
             continue;
         }
-        parse_inline_content(line, &mut tokens)?;
+        let inline_source = if line.starts_with('[') { line } else { raw_line };
+        parse_inline_content(inline_source, &mut tokens)?;
         tokens.push(KagToken::Newline);
     }
 
@@ -68,7 +72,22 @@ fn parse_inline_content(line: &str, tokens: &mut Vec<KagToken>) -> Result<(), St
             let mut tag_content = String::new();
             let mut found_close = false;
             let mut depth = 1;
+            let mut quote: Option<char> = None;
             for c in chars.by_ref() {
+                if let Some(q) = quote {
+                    if c == q {
+                        quote = None;
+                    }
+                    tag_content.push(c);
+                    continue;
+                }
+
+                if c == '"' || c == '\'' {
+                    quote = Some(c);
+                    tag_content.push(c);
+                    continue;
+                }
+
                 if c == '[' { depth += 1; }
                 if c == ']' {
                     depth -= 1;
@@ -105,28 +124,63 @@ fn parse_inline_tag(content: &str) -> Result<KagToken, String> {
 
 fn parse_attrs(s: &str) -> Result<HashMap<String, String>, String> {
     let mut attrs = HashMap::new();
-    let mut rest = s.trim();
-    while !rest.is_empty() {
-        if let Some(eq) = rest.find('=') {
-            let key = rest[..eq].trim().to_string();
-            rest = rest[eq+1..].trim_start();
-            let (value, remaining) = if rest.starts_with('"') {
-                let end = rest[1..].find('"').ok_or("Unclosed quote")?;
-                let val = rest[1..end+1].to_string();
-                (val, &rest[end+2..])   // (value, remaining)
-            } else {
-                // Unquoted values extend to the next whitespace character.
-                // An `=` inside an unquoted value is treated as part of the value,
-                // e.g. `foo=a=b` produces the key "foo" with value "a=b".
-                let end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
-                let val = rest[..end].to_string();
-                (val, &rest[end..])     // (value, remaining) — same order as quoted branch
-            };
-            attrs.insert(key, value);
-            rest = remaining.trim_start();
-        } else {
+    let chars: Vec<char> = s.trim().chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        if i >= chars.len() {
             break;
         }
+
+        let key_start = i;
+        while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '=' {
+            i += 1;
+        }
+        if key_start == i {
+            return Err("empty attribute name".to_string());
+        }
+
+        let key: String = chars[key_start..i].iter().collect();
+
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+
+        if i >= chars.len() || chars[i] != '=' {
+            attrs.insert(key, "true".to_string());
+            continue;
+        }
+
+        i += 1;
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+
+        let value = if i < chars.len() && (chars[i] == '"' || chars[i] == '\'') {
+            let quote = chars[i];
+            i += 1;
+            let value_start = i;
+            while i < chars.len() && chars[i] != quote {
+                i += 1;
+            }
+            if i >= chars.len() {
+                return Err("Unclosed quote".to_string());
+            }
+            let value: String = chars[value_start..i].iter().collect();
+            i += 1;
+            value
+        } else {
+            let value_start = i;
+            while i < chars.len() && !chars[i].is_whitespace() {
+                i += 1;
+            }
+            chars[value_start..i].iter().collect()
+        };
+
+        attrs.insert(key, value);
     }
     Ok(attrs)
 }
@@ -189,6 +243,13 @@ mod tests {
     }
 
     #[test]
+    fn skips_indented_comments() {
+        let tokens = parse_kag_text("   ; this is a comment\n[l]").unwrap();
+        assert!(tokens.iter().any(|t| matches!(t, KagToken::Tag { name, .. } if name == "l")));
+        assert!(!tokens.iter().any(|t| matches!(t, KagToken::Text { content } if content.contains("comment"))));
+    }
+
+    #[test]
     fn parses_text() {
         let tokens = parse_kag_text("こんにちは").unwrap();
         assert_eq!(tokens, vec![KagToken::Text { content: "こんにちは".to_string() }]);
@@ -198,6 +259,25 @@ mod tests {
     fn emits_newline_token() {
         let tokens = parse_kag_text("abc\ndef").unwrap();
         assert!(tokens.iter().any(|t| matches!(t, KagToken::Newline)));
+    }
+
+    #[test]
+    fn ignores_whitespace_only_lines() {
+        let tokens = parse_kag_text("\t   \n[l]").unwrap();
+        assert_eq!(tokens[0], KagToken::Newline);
+        assert!(matches!(tokens[1], KagToken::Tag { ref name, .. } if name == "l"));
+    }
+
+    #[test]
+    fn parses_indented_tags_without_emitting_indent_text() {
+        let tokens = parse_kag_text("\t[wt canskip=true]").unwrap();
+        assert_eq!(
+            tokens,
+            vec![KagToken::Tag {
+                name: "wt".to_string(),
+                attrs: [("canskip".to_string(), "true".to_string())].iter().cloned().collect(),
+            }]
+        );
     }
 
     #[test]
@@ -224,6 +304,23 @@ mod tests {
         let tokens = parse_kag_text("[tag foo=a=b]").unwrap();
         if let KagToken::Tag { attrs, .. } = &tokens[0] {
             assert_eq!(attrs.get("foo").unwrap(), "a=b");
+        } else { panic!(); }
+    }
+
+    #[test]
+    fn parses_bare_attr_as_true() {
+        let tokens = parse_kag_text("[playse loop storage=shock.wav]").unwrap();
+        if let KagToken::Tag { attrs, .. } = &tokens[0] {
+            assert_eq!(attrs.get("loop").unwrap(), "true");
+            assert_eq!(attrs.get("storage").unwrap(), "shock.wav");
+        } else { panic!(); }
+    }
+
+    #[test]
+    fn parses_single_quoted_attr_with_brackets() {
+        let tokens = parse_kag_text("[hact exp='foo[%[\"storage\"=>\"bar\"]]']").unwrap();
+        if let KagToken::Tag { attrs, .. } = &tokens[0] {
+            assert_eq!(attrs.get("exp").unwrap(), "foo[%[\"storage\"=>\"bar\"]]");
         } else { panic!(); }
     }
 }

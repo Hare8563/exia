@@ -1,5 +1,5 @@
 // src/components/modules/Background/Background3D.tsx
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
@@ -17,6 +17,15 @@ function BackgroundMesh({ file, startOpacity, targetOpacity, onFadeComplete }: {
   const firedRef = useRef(false)
   const { viewport } = useThree()
   const texture = useTexture(`/images/bgimage/${file}`)
+
+  useEffect(() => {
+    texture.generateMipmaps = false
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    texture.wrapS = THREE.ClampToEdgeWrapping
+    texture.wrapT = THREE.ClampToEdgeWrapping
+    texture.needsUpdate = true
+  }, [texture])
 
   // Object-cover: fill viewport
   const img = texture.image as HTMLImageElement | null
@@ -69,6 +78,7 @@ export function Background3D() {
 
   // Use double-buffer snapshots from transition object for crossfade
   const isCrossfade = isWaiting && transition?.method === 'crossfade'
+    && transition.layers.includes('base')
   const outgoingFile = isCrossfade
     ? transition!.foreLayers.find(l => l.id === 'base')?.file
     : undefined
