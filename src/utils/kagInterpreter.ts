@@ -360,7 +360,7 @@ export class KAGInterpreter {
 
       // Audio — KAG3 compat aliases
       case 'playbgm': case 'fadeinbgm':
-        if (attrs.storage) this.bgmFile = attrs.storage
+        if (attrs.storage) this.bgmFile = this.expandAttrValue(attrs.storage)
         this.pendingBgmFadeTime = attrs.time !== undefined ? parseInt(this.expandAttrValue(attrs.time)) : undefined
         return 'continue'
       case 'fadeoutbgm': case 'stopbgm2':
