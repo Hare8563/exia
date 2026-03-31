@@ -2,7 +2,6 @@
 // ローカル環境でVOICEVOXを起動しておくこと
 // https://voicevox.hiroshiba.jp/
 
-const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 // TODO: すべてのjsonファイルを読み込むように修正
@@ -42,36 +41,29 @@ async function generateVoice(line, index) {
 
     try {
       // URLパラメータとして音声合成用のクエリを生成
-      const queryResponse = await axios.post(
+      const queryRes = await fetch(
         `${VOICEVOX_API_ENDPOINT}/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
-        {},
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+        { method: "POST", headers: { "Content-Type": "application/json" } }
       );
-
-      const audioQuery = queryResponse.data;
+      if (!queryRes.ok) throw new Error(`audio_query failed: ${queryRes.status}`);
+      const audioQuery = await queryRes.json();
 
       // 音声データを生成
-      const synthesisResponse = await axios.post(
+      const synthesisRes = await fetch(
         `${VOICEVOX_API_ENDPOINT}/synthesis?speaker=${speakerId}`,
-        audioQuery,
         {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          responseType: "arraybuffer",
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(audioQuery),
         }
       );
-
-      const audioData = synthesisResponse.data;
+      if (!synthesisRes.ok) throw new Error(`synthesis failed: ${synthesisRes.status}`);
+      const audioData = await synthesisRes.arrayBuffer();
 
       // wavファイルとして保存
       const fileName = `${mockScenario.id}_${index}.wav`;
       const filePath = path.join(outputDir, fileName);
-      fs.writeFileSync(filePath, Buffer.from(audioData));
+      fs.writeFileSync(filePath, Buffer.from(new Uint8Array(audioData)));
 
       console.log(`Created: ${fileName}`);
     } catch (error) {
