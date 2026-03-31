@@ -248,9 +248,14 @@ export class KAGInterpreter {
         return 'continue'
       case 'mapimage':
         this.clickableMap.image = attrs.storage
+        this.clickableMap.layer = attrs.layer === 'base' ? 'base' : parseInt(attrs.layer ?? '0')
+        this.clickableMap.page = attrs.page === 'back' ? 'back' : 'fore'
         return 'continue'
       case 'mapaction':
         this.clickableMap.action = attrs.storage
+        this.clickableMap.layer = attrs.layer === 'base' ? 'base' : parseInt(attrs.layer ?? '0')
+        this.clickableMap.page = attrs.page === 'back' ? 'back' : 'fore'
+        this.clickableMap.enabled = !!this.clickableMap.image && !!this.clickableMap.action
         return 'continue'
       case 'mapdisable':
         this.clickableMap.enabled = false

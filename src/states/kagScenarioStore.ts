@@ -30,6 +30,7 @@ const INITIAL: KAGScenarioState = {
     buttons: [],
     clickableMap: {
       enabled: false,
+      page: 'fore',
     },
   },
   flags: {},

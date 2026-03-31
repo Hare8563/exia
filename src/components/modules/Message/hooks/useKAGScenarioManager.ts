@@ -5,6 +5,7 @@ import { loadKAGTokens } from '@/utils/kagLoader'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import { useNavigationStore } from '@/states/navigationStore'
 import type { KAGDisplayFrame, KAGLogEntry } from '@/types/kag'
+import type { ClickableMapAction } from '@/utils/clickableMap'
 
 // Module-level singleton so all hook instances share the same interpreter
 const sharedInterpreterRef = { current: null as KAGInterpreter | null }
@@ -154,6 +155,26 @@ export function useKAGScenarioManager() {
     }
   }, [interpreterRef])
 
+  const jumpByStorage = useCallback(async (storage: string | undefined, target: string | undefined) => {
+    const interp = interpreterRef.current
+    if (!interp) return
+
+    if (storage) {
+      const normalizedFile = storage.replace(/\.ks$/i, '')
+      const tokens = await loadKAGTokens(`scenarios/${normalizedFile}`)
+      const label = (target ?? '').replace(/^\*/, '')
+      const flags = useKAGScenarioStore.getState().flags
+      interp.loadTokens(tokens, label, flags)
+      await doAdvanceRef.current()
+      return
+    }
+
+    if (target) {
+      interp.jumpToLabel(target.replace(/^\*/, ''))
+      await doAdvanceRef.current()
+    }
+  }, [interpreterRef])
+
   const goToNextLine = useCallback(async () => {
     if (isScenarioEnd) return
     const interp = interpreterRef.current
@@ -236,6 +257,15 @@ export function useKAGScenarioManager() {
     interp.executeTjsStatement(exp)
   }, [registerKagHandlers])
 
+  const executeClickableMapAction = useCallback(async (action: ClickableMapAction) => {
+    if (action.exp) {
+      await executeButtonExp(action.exp)
+    }
+    if (action.storage || action.target) {
+      await jumpByStorage(action.storage, action.target)
+    }
+  }, [executeButtonExp, jumpByStorage])
+
   const getCurrentSpeakerName = useCallback(() => {
     return useKAGScenarioStore.getState().currentSpeakerName
   }, [])
@@ -264,5 +294,6 @@ export function useKAGScenarioManager() {
     isScenarioEnd,
     init,
     executeButtonExp,
+    executeClickableMapAction,
   }
 }

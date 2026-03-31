@@ -7,6 +7,7 @@ import { Navigation } from '@/components/modules/Navigation'
 import { Log } from '@/components/modules/Log'
 import { Voice } from '@/components/modules/Voice'
 import { Bgm } from '@/components/modules/Bgm'
+import { ClickableMap } from '@/components/modules/ClickableMap'
 import { useKAGScenarioManager } from '@/components/modules/Message/hooks/useKAGScenarioManager'
 import { useScreenStore } from '@/states/screenStore'
 import { useNavigationStore } from '@/states/navigationStore'
@@ -74,6 +75,7 @@ export const MainScreen: React.FC = () => {
       <Voice />
       <Bgm />
       <ThreeCanvas />
+      <ClickableMap />
       <Message />
       <Navigation />
       <Log />

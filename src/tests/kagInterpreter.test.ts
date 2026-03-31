@@ -1,6 +1,7 @@
 // src/tests/kagInterpreter.test.ts
 import { describe, it, expect } from 'vitest'
 import { KAGInterpreter } from '@/utils/kagInterpreter'
+import { parseClickableMap } from '@/utils/clickableMap'
 import type { KagToken } from '@/types/kag'
 
 
@@ -529,6 +530,21 @@ describe('KAGInterpreter', () => {
       expect(frame.uiState.startAnchorEnabled).toBe(true)
     })
 
+    it('enables clickable map state after mapimage + mapaction', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'mapimage', attrs: { layer: 'base', page: 'fore', storage: 'dialog_save_yes_no_p' } },
+        { type: 'Tag', name: 'mapaction', attrs: { layer: 'base', page: 'fore', storage: 'dialog_title_yes_no_main.ma' } },
+        { type: 'Tag', name: 's', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.uiState.clickableMap.enabled).toBe(true)
+      expect(frame.uiState.clickableMap.layer).toBe('base')
+      expect(frame.uiState.clickableMap.page).toBe('fore')
+      expect(frame.uiState.clickableMap.image).toBe('dialog_save_yes_no_p')
+      expect(frame.uiState.clickableMap.action).toBe('dialog_title_yes_no_main.ma')
+    })
+
     it('registers button tags and hides them through message-layer layopt', async () => {
       const tokens: KagToken[] = [
         { type: 'Tag', name: 'current', attrs: { layer: 'message8' } },
@@ -553,6 +569,21 @@ describe('KAGInterpreter', () => {
       })
       interp.executeTjsStatement("if(kag.inStable == 1)kag.callExtraConductor('macro_message_tool.ks', '*go_title')")
       expect(calls).toEqual(['macro_message_tool.ks:*go_title'])
+    })
+  })
+
+  describe('clickable map parsing', () => {
+    it('parses region actions and autodisable=false from .ma content', () => {
+      const parsed = parseClickableMap([
+        '0: autodisable=false;',
+        '6: hint="Yes"; storage="macro_message_tool.ks"; target="*go_title_ye";',
+        '7: hint="No"; exp="kag.onPrimaryRightClick()";',
+      ].join('\n'))
+
+      expect(parsed.autodisable).toBe(false)
+      expect(parsed.actions[6].storage).toBe('macro_message_tool.ks')
+      expect(parsed.actions[6].target).toBe('*go_title_ye')
+      expect(parsed.actions[7].exp).toBe('kag.onPrimaryRightClick()')
     })
   })
 })

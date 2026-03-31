@@ -82,6 +82,8 @@ export type KAGClickableMapState = {
   enabled: boolean
   image?: string
   action?: string
+  layer?: 'base' | number
+  page?: 'fore' | 'back'
 }
 
 export type KAGUIState = {
