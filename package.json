@@ -25,6 +25,7 @@
     "@tauri-apps/api": "^2.0.0",
     "@types/three": "^0.183.1",
     "autoprefixer": "^10.4.21",
+    "firebase": "^12.11.0",
     "postcss": "^8.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
