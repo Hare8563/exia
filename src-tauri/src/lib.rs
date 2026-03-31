@@ -1,4 +1,5 @@
 mod kag_parser;
+pub mod xp3;
 
 use std::fs;
 
