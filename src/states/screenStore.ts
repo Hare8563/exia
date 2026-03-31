@@ -9,7 +9,7 @@ interface ScreenStore {
 
 export const useScreenStore = create<ScreenStore>((set) => ({
   screenState: {
-    screen: SCREEN.MAIN_SCREEN,
+    screen: SCREEN.SIGN_IN,
     isLoaded: false,
   },
   setScreen: (data) => set((state) => ({

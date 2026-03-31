@@ -9,6 +9,8 @@ export const SCREEN = {
   START_SCREEN: 0,
   MAIN_SCREEN: 1,
   ENDING_SCREEN: 2,
+  SIGN_IN: 3,
+  ASSET_UPDATE: 4,
 } as const;
 
 // メッセージ表示に関する定数
