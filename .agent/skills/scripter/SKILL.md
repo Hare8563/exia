@@ -17,21 +17,36 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 
 ---
 
+## 重要原則：マクロを使う
+
+このゲームはKAG3マクロシステムを使用している。**生のKAG3タグを直接書かずに、定義済みのマクロを使うこと。**
+
+スクリプトの先頭で必ずマクロファイルを読み込む：
+
+```ks
+[call storage="macro_character_tool.ks" target=*character_macro]
+[call storage="macro_image_tool.ks" target=*image_macro]
+[call storage="macro_music_tool.ks" target=*voice_music_macro]
+[call storage="macro_message_tool.ks" target=*message_name_macro]
+```
+
+---
+
 ## レイヤー割り当て規約
 
-| レイヤー | 用途 | 例 |
-|---------|------|---|
-| `base` | 背景 | `[image storage=bg_xxx.webp layer=base]` |
-| `0` | キャラクター1（メイン） | `[image layer=0 storage=chara_A.webp visible=true]` |
-| `1` | キャラクター2 | `[image layer=1 storage=chara_B.webp visible=true]` |
-| `2` | キャラクター3 | `[image layer=2 storage=chara_C.webp visible=true]` |
-| `3` | カットイン・演出オーバーレイ | `[image layer=3 storage=cut_01.webp visible=true]` |
-| `4` | フルスクリーンCG | `[image layer=4 storage=cg_01.webp visible=true]` |
+| レイヤー | 用途 | 位置 (left/top) |
+|---------|------|----------------|
+| `base` | 背景 | 0, 0 |
+| `0` | キャラクター・左 | 50, 100 |
+| `1` | キャラクター・中央 | 1050, 100 |
+| `2` | キャラクター・右（または前面） | 200, 0 または 1350, 100 |
+| `3` | カットイン・演出オーバーレイ | — |
+| `4` | フルスクリーンCG（直接imageタグで制御） | — |
 
 各スクリプトの先頭に、そのシナリオで使用するキャラクターのレイヤー割り当てをコメントで明記すること：
 
 ```ks
-; Layer: 0=キャラA, 1=キャラB, 3=カットイン, 4=フルスクリーンCG
+; Layer: 0=キャラA(左), 1=キャラB(中央), 2=キャラC(右), 3=カットイン
 ```
 
 ---
@@ -56,54 +71,79 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 
 | 内容 | KAG出力 |
 |------|---------|
-| ナレーション（地の文・独白） | `[name]`なしでテキスト直書き + `[l]` |
-| キャラクターの台詞 | `[name text="キャラ名"]` + テキスト + `[l]` |
+| ナレーション（地の文・独白） | `[CH_NAME_OFF]` + テキスト直書き + `[l]` |
+| キャラクターの台詞 | `[CH_NAME_XXX name="キャラ名"]` + `[VOICE voice=xxx voice_count=N]` + テキスト + `[l]` |
 | ページ送り（長いシーン区切り） | `[p]`（テキストをクリアして次へ） |
 | 選択肢 | `[glink]` × N + `[s]` |
 | フラグ操作 | `[flag name=xxx value=yyy]` |
-| ジャンプ | `[jump target=*label]` |
+| ラベルジャンプ（同ファイル内） | `[jump target=*label]` |
+| ラベルジャンプ（別ファイル） | `[jump storage=S_XXX.ks target=*label]` |
 | 改行（テキスト内） | `[r]` |
 
 ### 演出参照タグの解釈
 
-本文中に埋め込まれた参照タグを読み取り、対応するKAGタグを出力する。
+本文中に埋め込まれた参照タグを読み取り、対応するKAGマクロを出力する。
 
 | 参照タグ形式 | KAG出力 |
 |------------|---------|
-| `〈CG:CG_001〉` | `[image layer=3 storage=CG_001.webp visible=true]` |
-| `〈BG:opening〉` | `[image storage=opening.webp layer=base]` |
-| `〈VOICE:V001〉` | `[voice storage=V001.wav]` |
-| `〈BGM:第1幕〉` | `[bgm storage=第1幕.mp3]` |
-| `〈SE:name〉` | `[se storage=name.wav]` |
-| `〈FACE:emotion〉` | `[image layer=N storage=chara_XX_emotion.webp]`（N=そのキャラのレイヤー番号） |
+| `〈BG:image_name〉` | `[FAID_IN_CG back_cg="image_name.webp" time=1500]` |
+| `〈BG_CHANGE:image_name〉` | `[FAID_CH_CG back_cg="image_name.webp" time=500]` |
+| `〈CG:image_name〉` | `[FAID_IN_CG back_cg="image_name.webp" time=1000]` |
+| `〈VOICE:V001〉` | `[VOICE voice="V001.wav" voice_count=N]` |
+| `〈BGM:filename〉` | `[PLAY_BGM bgm="filename.mp3" bgm_flag=0]` |
+| `〈SE:filename〉` | `[PLAY_SE se="filename.wav" se_flag=0]` |
+| `〈CHARA_ON:slot,file〉` | `[CHARA_ON ch_count=N ch_l="file" time=1000]` など |
+| `〈CHARA_OFF:slot〉` | `[CHARA_OFF ch_count=N time=500]` |
+| `〈CUTIN:filename〉` | `[ITEM_IN item_name="filename.webp"]` |
+| `〈CUTIN_OFF〉` | `[ITEM_OUT]` |
 
 ---
 
 ## Phase 3: KAGスクリプト組み立て
 
-### 基本構造
+### 基本構造（スクリプトヘッダー）
+
+S_000.ks のように、各スクリプトは `*entry` ラベルで初期化し、マクロファイルを読み込んでから `*start` で本文を始める：
 
 ```ks
 ; S_XXX.ks — [シーン説明]
 ; Layer: [レイヤー割り当て表]
 
-; --- 初期化 ---
-[image storage=bg_xxx.webp layer=base]
-[image layer=0 storage=chara_A.webp visible=true]
-
 *entry
-[bgm storage=bgm_opening.mp3]
+[laycount layers=0]
+[backlay]
+[image storage="black.png" layer=base page=back left=0 top=0 visible=true]
+[trans time=500 method=crossfade]
+[wt canskip=false]
+[cm]
+[mapdisable layer=base page=fore]
+[freeimage layer=base page=fore]
+[freeimage layer=base page=back]
+[laycount layers="&sf.default_layer_num"]
+[laycount messages=14]
+[STOP_BGM bgm_flag=0]
+[STOP_SE se_flag=0]
+[MESSAGE_OFF]
+[history output=true enabled=true]
+[rclick enabled=true]
+[startanchor enabled=true]
+[call storage="macro_character_tool.ks" target=*character_macro]
+[call storage="macro_image_tool.ks" target=*image_macro]
+[call storage="macro_music_tool.ks" target=*voice_music_macro]
+[call storage="macro_message_tool.ks" target=*message_name_macro]
+
+*start
+; --- 背景・キャラクター初期化 ---
+[FAID_IN_CG back_cg="bg_xxx.webp" time=1500]
+[MESSAGE_ON]
 
 ; --- 本文 ---
-ナレーションテキスト[l]
-[name text="キャラA"]
-[voice storage=chara_a_001.wav]
-セリフテキスト[l]
 ```
 
 ### ナレーション行
 
 ```ks
+[CH_NAME_OFF]
 これは地の文です。[l]
 長い場面では[r]このように改行できます。[l]
 ```
@@ -111,18 +151,89 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 ### ダイアログ行
 
 ```ks
-[name text="渚"]
-[voice storage=n0001.wav]
+[CH_NAME_KAZARI name="風璃"]
+[VOICE voice="k0001.wav" voice_count=0]
 こんにちは！セリフテキストです。[l]
 ```
 
-- `[name text="xxx"]` は発話キャラが変わる行の直前に挿入する
-- `[voice storage=xxx.wav]` で音声ファイルを直指定する
+- `[CH_NAME_XXX name="表示名"]` — 発話キャラが変わる行の直前に挿入する（キャラごとに固有マクロを使う）
+- `[VOICE voice="filename.wav" voice_count=N]` — `voice_count` はキャラ番号（0〜7）。`0`が最もよく使われる
 - セリフの直後に `[l]` で待機ポイントを設ける
+- キャラ変更時は必ず `[CH_NAME_OFF]` または次の `[CH_NAME_XXX]` で上書きする
+
+### 話者名マクロ一覧
+
+| マクロ | キャラクター |
+|--------|------------|
+| `[CH_NAME_OFF]` | 話者名を非表示（ナレーション） |
+| `[CH_NAME_M name="名前"]` | 主人公 |
+| `[CH_NAME_KAZARI name="名前"]` | 風璃 |
+| `[CH_NAME_TSUKINO name="名前"]` | 月乃 |
+| `[CH_NAME_PRECIOUS name="名前"]` | Precious |
+| `[CH_NAME_AKI name="名前"]` | 渚 |
+| `[CH_NAME_SARARA name="名前"]` | さらら |
+| `[CH_NAME_UTAHA name="名前"]` | 詩羽 |
+| `[CH_NAME_HINAMI name="名前"]` | 陽奈実 |
+| `[CH_NAME_KAGAHO name="名前"]` | 翔鳳 |
+| `[CH_NAME_KYOSUKE name="名前"]` | 恭介 |
+| `[CH_NAME_ONECE name="名前"]` | お姉ちゃん |
+| `[CH_NAME_O name="名前"]` | その他 |
+
+### 背景・CG制御マクロ
+
+| マクロ | 説明 | 主なパラメータ |
+|--------|------|---------------|
+| `[FAID_IN_CG back_cg=xxx time=N]` | 背景フェードイン（透明→画像） | `back_cg`=ファイル名, `time`=ms |
+| `[FAID_IN_CG2 back_cg=xxx time=N]` | 背景フェードイン（白→画像） | 同上 |
+| `[FAID_CH_CG back_cg=xxx time=N]` | 背景クロスフェード（画像→画像） | 同上 |
+| `[FAID_OUT_CG back_cg=xxx time=N]` | 背景フェードアウト | 同上 |
+| `[INSTANT_CG back_cg=xxx]` | 背景即時切り替え（エフェクトなし） | `back_cg`=ファイル名 |
+| `[ITEM_IN item_name=xxx]` | カットイン（layer=3）表示 | `item_name`=ファイル名 |
+| `[ITEM_OUT]` | カットイン非表示 | — |
+
+フルスクリーンCGは `[FAID_IN_CG]` で表示し、非表示は直接タグで：
+
+```ks
+[FAID_IN_CG back_cg="cg_01.webp" time=1000]
+CGシーンのテキスト[l]
+[image layer=4 visible=false]
+```
+
+### キャラクター制御マクロ
+
+| マクロ | 説明 | 主なパラメータ |
+|--------|------|---------------|
+| `[CHARA_ON ch_count=N ch_l=xxx time=N]` | キャラクター表示（フェードイン） | `ch_count`=スロット(0=左,1=中,2=右,3=全3,4=左中,5=中右,6=左右), `ch_l/ch_c/ch_r`=ファイル名, `time`=ms |
+| `[CHARA_CH ch_count=N ch_l=xxx time=N]` | キャラクター切り替え | 同上 |
+| `[CHARA_OFF ch_count=N time=N]` | キャラクター非表示（フェードアウト） | `ch_count`=スロット(0=左,1=中,2=右,3=全3,4=左中,5=中右,6=左右), `time`=ms |
+| `[ALL_OFF back_cg=xxx out_number=N time=N]` | 全キャラ非表示 + 背景クリア | `back_cg`=フェード後の背景, `out_number`=フェード種別, `time`=ms |
+| `[CHARA_SHAKE ch_count=N]` | キャラクター揺れエフェクト | `ch_count`=スロット |
+| `[CHARA_MOVE ch_count=N]` | キャラクター移動 | `ch_count`=スロット |
+
+### 音楽・SE制御マクロ
+
+| マクロ | 説明 | 主なパラメータ |
+|--------|------|---------------|
+| `[PLAY_BGM bgm=xxx bgm_flag=0]` | BGM再生 | `bgm`=ファイル名, `bgm_flag`=0:通常/1:フェードイン |
+| `[STOP_BGM bgm_flag=0]` | BGM停止 | `bgm_flag`=0:通常/1:フェードアウト |
+| `[VOICE voice=xxx voice_count=N]` | ボイス再生（buf 2〜9） | `voice`=ファイル名, `voice_count`=キャラ番号(0〜7) |
+| `[STOP_VOICE]` | 全ボイス停止 | — |
+| `[PLAY_SE se=xxx se_flag=0]` | SE再生（buf 0） | `se`=ファイル名, `se_flag`=0:通常/1:フェード/2:停止待ち |
+| `[PLAY_SE_LOOP se=xxx se_flag=0]` | SEループ再生（buf 1） | 同上 |
+| `[STOP_SE se_flag=0]` | SE停止 | `se_flag`=0:通常/1:フェード |
+
+### メッセージウィンドウ制御マクロ
+
+| マクロ | 説明 |
+|--------|------|
+| `[MESSAGE_ON]` | メッセージウィンドウ表示（各シーン本文前に呼ぶ） |
+| `[MESSAGE_OFF]` | メッセージウィンドウ非表示（演出中・CG表示前など） |
+| `[SYSTEM_MENU_ON]` | システムメニュー表示（`[p]` 相当の改ページ + ボイス停止） |
 
 ### 選択肢
 
 ```ks
+[CH_NAME_OFF]
 どうしますか？[r]
 [glink target=*label_a text="選択肢A"]
 [glink target=*label_b text="選択肢B"]
@@ -140,57 +251,37 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 ### 条件分岐
 
 ```ks
-[if exp="f.choice_result == a"]
+[if exp="f.choice_result == text"]
 Aを選んだ場合のテキスト[l]
-[else]
+[elsif exp="f.choice_result == chara"]
 Bを選んだ場合のテキスト[l]
+[else]
+その他の場合のテキスト[l]
 [endif]
 ```
 
-### BGM・SE制御
+### ファイルをまたぐジャンプ・呼び出し
 
 ```ks
-[bgm storage=scene_bgm.mp3]   ; BGM開始
-[stopbgm]                      ; BGM停止
-[se storage=effect.wav]        ; SE再生
+; 別シナリオファイルへジャンプ（戻らない）
+[jump storage=S_002.ks target=*start]
+
+; 別ファイルのサブルーチンを呼ぶ（[return]で戻る）
+[call storage=S_SUB.ks target=*subroutine_label]
 ```
 
-### CG・レイヤー制御
-
-```ks
-; カットイン表示
-[image layer=3 storage=cut_scene.webp visible=true left=0 top=0]
-演出テキスト[l]
-[image layer=3 visible=false]  ; カットイン非表示
-
-; フルスクリーンCG
-[image layer=4 storage=cg_climax.webp visible=true left=0 top=0]
-CGの説明テキスト[l]
-[image layer=4 visible=false]  ; CG非表示
-
-; 背景変更（クロスフェード）
-[trans method=crossfade time=800]
-[image storage=bg_new.webp layer=base]
-[wt]
-```
-
-### フラグとジャンプ
-
-```ks
-[flag name=scene_cleared value=true]
-[jump target=*next_scene]
-[jump target=*start file=S_002.ks]  ; ファイルをまたいだジャンプ
-```
+**注意**: `file=` ではなく `storage=` を使うこと。
 
 ---
 
 ## Phase 4: タイミング調整
 
-以下のシーンには意図的に余白行（テキストなし・`[l]`のみ）や `[wait time=N]` を挿入する。
+以下のシーンには意図的に余白行（テキストなし・`[l]`のみ）や `[wait time=N canskip=true]` を挿入する。
 
 - 絶頂の直前：3〜5本の短い断片テキスト（`……`など）を `[l]` で区切る
 - BGM切り替え直後：1〜2本の余白ナレーション
 - 選択肢の直前：1本の問いかけナレーション
+- 全消え演出の後：`[wait time=1000 canskip=true]` で間を取る
 
 ---
 
@@ -200,10 +291,13 @@ CGの説明テキスト[l]
 
 - [ ] 全テキスト行の末尾に `[l]` または `[p]` が付いているか
 - [ ] `[glink]` の `target` に対応する `*label` が存在するか
-- [ ] `[jump target=*xxx]` に対応する `*label` が存在するか（ファイルをまたぐ場合は `file=` を指定しているか）
+- [ ] `[jump storage=xxx target=*label]` の `storage=` 表記が正しいか（`file=` は使わない）
+- [ ] `[call storage=xxx target=*label]` の表記が正しいか
 - [ ] `[if exp="f.xxx == yyy"]` で参照するフラグが事前に `[flag]` で設定されているか
 - [ ] 全ての `storage=xxx` がcg_manifestまたはaudio_manifestに存在するファイル名を参照しているか
 - [ ] KAGレイヤー割り当てがスクリプト先頭のコメントと一致しているか
+- [ ] `[VOICE voice=xxx voice_count=N]` の `voice_count` がキャラクターに対応しているか
+- [ ] `[CH_NAME_OFF]` がナレーション行の前に必ず呼ばれているか
 - [ ] 総テキスト行数が100〜120行の範囲に収まっているか
 
 ### レビューの実施
@@ -224,7 +318,9 @@ CGの説明テキスト[l]
 
 ---
 
-## KAG タグ早見表
+## KAGタグ早見表（低レベル）
+
+マクロで解決できない場合のみ使用する。完全なタグ仕様は [`resources/tags.md`](resources/tags.md) を参照。
 
 | タグ | 説明 |
 |------|------|
@@ -232,22 +328,32 @@ CGの説明テキスト[l]
 | `[p]` | ページクリア＋クリック待ち |
 | `[r]` | テキスト内改行 |
 | `[cm]` | テキストバッファクリア（待機なし） |
+| `[er]` | テキストバッファクリア（メッセージレイヤ） |
 | `[s]` | 停止（選択肢待ちなどで使用） |
-| `[name text="xxx"]` | 話者名設定 |
-| `[image layer=N storage=xxx visible=true/false]` | レイヤー画像設定 |
-| `[bgm storage=xxx]` | BGM再生 |
-| `[stopbgm]` | BGM停止 |
-| `[se storage=xxx]` | SE再生 |
-| `[voice storage=xxx]` | 音声ファイル再生 |
-| `[trans method=crossfade time=N]` | トランジション設定 |
-| `[wt]` | トランジション完了待ち |
-| `[wait time=N]` | Nミリ秒待機 |
+| `[image layer=N storage=xxx page=fore/back visible=true/false left=N top=N]` | レイヤー画像直接設定 |
+| `[backlay]` | fore→backへバッファをコピー |
+| `[trans layer=N/base method=crossfade time=N]` | トランジション開始（即時） |
+| `[wt canskip=true/false]` | 全トランジション完了待ち |
+| `[wait time=N canskip=true/false]` | Nミリ秒待機 |
+| `[playbgm storage=xxx]` | BGM再生（直接） |
+| `[stopbgm]` | BGM停止（直接） |
+| `[playse buf=N storage=xxx loop=true/false]` | SE再生（直接） |
+| `[stopse buf=N]` | SE停止（直接） |
 | `[flag name=xxx value=yyy]` | フラグ設定 |
+| `[eval exp="f.xxx = yyy"]` | 式評価・フラグ設定 |
 | `[if exp="f.xxx == yyy"]` | 条件分岐 |
+| `[elsif exp="..."]` | else if節 |
 | `[else]` | else節 |
 | `[endif]` | 分岐終了 |
-| `[jump target=*label]` | ラベルジャンプ |
-| `[jump target=*label file=S_XXX.ks]` | ファイルをまたいだジャンプ |
-| `[call target=*label]` | サブルーチン呼び出し |
+| `[jump target=*label]` | ラベルジャンプ（同ファイル内） |
+| `[jump storage=S_XXX.ks target=*label]` | ラベルジャンプ（別ファイル） |
+| `[call storage=S_XXX.ks target=*label]` | サブルーチン呼び出し |
 | `[return]` | サブルーチンから戻る |
 | `[glink target=*label text="xxx"]` | 選択肢ボタン |
+| `[layopt layer=N/message0/etc page=fore/back visible=true/false]` | レイヤー表示制御 |
+| `[history output=true/false enabled=true/false]` | 履歴設定 |
+| `[rclick enabled=true/false]` | 右クリック有効/無効 |
+| `[startanchor enabled=true/false]` | タイトル戻り有効/無効 |
+| `[resetwait]` | 自動読み進みタイマーリセット |
+| `[freeimage layer=N/base page=fore/back]` | レイヤー画像解放 |
+| `[laycount layers=N messages=N]` | レイヤー数設定 |
