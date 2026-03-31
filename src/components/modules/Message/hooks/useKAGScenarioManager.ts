@@ -51,6 +51,7 @@ export function useKAGScenarioManager() {
       currentSeFile: frame.seFile,
       currentSeFiles: frame.seFiles ?? useKAGScenarioStore.getState().currentSeFiles,
       currentVoiceFile: frame.voiceFile,
+      currentVoicePlayback: frame.voicePlayback,
       currentVoiceSpeakerId: frame.voiceSpeakerId,
       currentChoices: frame.choices,
       isWaitingTransition: frame.isWaitingTransition,
@@ -89,7 +90,7 @@ export function useKAGScenarioManager() {
     if (frame.isWaitingTimer && frame.waitTime) {
       pendingTimerRef.current = setTimeout(() => {
         pendingTimerRef.current = null
-        interpreterRef.current?.onForegroundTransitionComplete()
+        interpreterRef.current?.onTimedWaitComplete()
         commitTransitionToStore()
         void doAdvanceRef.current()
       }, frame.waitTime)
@@ -200,12 +201,27 @@ export function useKAGScenarioManager() {
   const goToNextLine = useCallback(async () => {
     if (isScenarioEnd) return
     const interp = interpreterRef.current
+    if (interp?.isWaitingAudio()) {
+      const waitingAudio = interp.getWaitingAudio()
+      if (!waitingAudio?.canSkip) return
+      interp.onAudioPlaybackComplete(waitingAudio.kind, waitingAudio.buf, true)
+      const state = useKAGScenarioStore.getState()
+      if (waitingAudio.kind === 'voice') {
+        setFrame({ currentVoiceFile: undefined, currentVoicePlayback: undefined })
+      } else {
+        const nextSeFiles = { ...(state.currentSeFiles ?? {}) }
+        delete nextSeFiles[waitingAudio.buf]
+        setFrame({ currentSeFiles: nextSeFiles })
+      }
+      await doAdvance()
+      return
+    }
     // Cancel any pending foreground timer
     if (pendingTimerRef.current !== null) {
       if (!waitCanSkipRef.current) return
       clearTimeout(pendingTimerRef.current)
       pendingTimerRef.current = null
-      interp?.onForegroundTransitionComplete()
+      interp?.onTimedWaitComplete()
       commitTransitionToStore()
     }
     if (interp?.isWaitingTransition()) {
@@ -306,6 +322,10 @@ export function useKAGScenarioManager() {
     useKAGScenarioStore.getState().setTransitionCompleteCallback(() => {
       interpreterRef.current?.onTransitionComplete()
       commitTransitionToStore()
+      void doAdvanceRef.current()
+    })
+    useKAGScenarioStore.getState().setAudioWaitCompleteCallback((kind, buf) => {
+      interpreterRef.current?.onAudioPlaybackComplete(kind, buf)
       void doAdvanceRef.current()
     })
     void doAdvance(sessionRef.current)

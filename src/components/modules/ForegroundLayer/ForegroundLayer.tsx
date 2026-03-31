@@ -81,6 +81,7 @@ function LayerSprite({ layer, startOpacity }: { layer: KAGLayer; startOpacity?: 
 export function ForegroundLayer() {
   const layers = useKAGScenarioStore(s => s.layers.filter(l => typeof l.id === 'number'))
   const transition = useKAGScenarioStore(s => s.currentTransition)
+  const transitionEntries = transition?.entries ?? []
 
   // Set of foreground layer ids currently being transitioned
   const transitioningIds = new Set(
@@ -97,8 +98,12 @@ export function ForegroundLayer() {
       })}
       {/* Back buffer layers fade in from opacity 0 during transition */}
       {transition && Array.from(transitioningIds).map(id => {
+        const entry = transitionEntries.find(candidate => candidate.layer === id)
         const backLayer = transition.backLayers.find(l => l.id === id)
         if (!backLayer?.file) return null
+        if (entry && entry.method !== 'crossfade') {
+          return <LayerSprite key={`trans-${id}`} layer={backLayer} />
+        }
         return <LayerSprite key={`trans-${id}`} layer={backLayer} startOpacity={0} />
       })}
     </>

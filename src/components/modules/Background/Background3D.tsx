@@ -76,9 +76,11 @@ export function Background3D() {
     useKAGScenarioStore.getState().transitionCompleteCallback?.()
   }
 
+  const baseTransition = transition?.entries.find(entry => entry.layer === 'base')
+
   // Use double-buffer snapshots from transition object for crossfade
-  const isCrossfade = isWaiting && transition?.method === 'crossfade'
-    && transition.layers.includes('base')
+  const isCrossfade = isWaiting && baseTransition?.method === 'crossfade'
+    && !!transition?.layers.includes('base')
   const outgoingFile = isCrossfade
     ? transition!.foreLayers.find(l => l.id === 'base')?.file
     : undefined

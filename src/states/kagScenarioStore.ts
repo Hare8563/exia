@@ -18,6 +18,7 @@ const INITIAL: KAGScenarioState = {
   currentSeFile: undefined,
   currentSeFiles: {},
   currentVoiceFile: undefined,
+  currentVoicePlayback: undefined,
   currentVoiceSpeakerId: undefined,
   currentChoices: undefined,
   isWaitingTransition: false,
@@ -43,6 +44,8 @@ type KAGScenarioStore = KAGScenarioState & {
   setFrame: (updates: Partial<KAGScenarioState>) => void
   reset: () => void
   setTransitionCompleteCallback: (fn: (() => void) | null) => void
+  setAudioWaitCompleteCallback: (fn: ((kind: 'se' | 'voice', buf: number) => void) | null) => void
+  audioWaitCompleteCallback: ((kind: 'se' | 'voice', buf: number) => void) | null
 }
 
 export const useKAGScenarioStore = create<KAGScenarioStore>(set => ({
@@ -50,4 +53,6 @@ export const useKAGScenarioStore = create<KAGScenarioStore>(set => ({
   setFrame: updates => set(state => ({ ...state, ...updates })),
   reset: () => set(INITIAL),
   setTransitionCompleteCallback: fn => set({ transitionCompleteCallback: fn }),
+  audioWaitCompleteCallback: null,
+  setAudioWaitCompleteCallback: fn => set({ audioWaitCompleteCallback: fn }),
 }))

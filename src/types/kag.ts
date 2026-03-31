@@ -23,6 +23,12 @@ export type KAGLayer = {
   scale: number
 }
 
+export type KAGTransitionEntry = {
+  layer: 'base' | number
+  method: string
+  time: number
+}
+
 // State returned after each advance() call (one "click unit")
 export type KAGDisplayFrame = {
   text: string
@@ -32,12 +38,14 @@ export type KAGDisplayFrame = {
   seFile?: string
   seFiles?: Record<number, KAGSEChannel>
   voiceFile?: string
+  voicePlayback?: KAGVoicePlayback
   voiceSpeakerId?: number           // VOICEVOX speaker id
   choices?: { text: string; target: string }[]
   transition?: {
-    method: string                  // 'crossfade' | 'scroll' | 'dissolve'
+    method: string                  // representative method for backward compatibility
     time: number                    // ms (max of all running transitions)
     layers: ('base' | number)[]     // layers being transitioned
+    entries: KAGTransitionEntry[]   // per-layer transition definitions
     foreLayers: KAGLayer[]          // fore buffer snapshot at transition start
     backLayers: KAGLayer[]          // back buffer snapshot at transition start (target)
   }
@@ -63,6 +71,7 @@ export type KAGScenarioState = {
   currentSeFile?: string
   currentSeFiles?: Record<number, KAGSEChannel>
   currentVoiceFile?: string
+  currentVoicePlayback?: KAGVoicePlayback
   currentVoiceSpeakerId?: number
   currentChoices?: { text: string; target: string }[]
   isWaitingTransition: boolean
@@ -84,6 +93,13 @@ export type KAGUIButton = {
 export type KAGSEChannel = {
   file: string
   playId: number
+  loop?: boolean
+}
+
+export type KAGVoicePlayback = {
+  file: string
+  playId: number
+  buf: number
 }
 
 export type KAGClickableMapState = {

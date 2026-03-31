@@ -136,6 +136,18 @@ describe('KAGInterpreter', () => {
       expect(layer?.visible).toBe(true)
     })
 
+    it('[image] derives clickable map companion paths on the fore page', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'image', attrs: { storage: 'map1.png', layer: 'base', page: 'fore', visible: 'true' } },
+        { type: 'Tag', name: 's', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.uiState.clickableMap.enabled).toBe(true)
+      expect(frame.uiState.clickableMap.image).toBe('map1_p.png')
+      expect(frame.uiState.clickableMap.action).toBe('map1.ma')
+    })
+
     it('[bgm] sets bgmFile', async () => {
       const tokens: KagToken[] = [
         { type: 'Tag', name: 'bgm', attrs: { storage: 'calm.mp3' } },
@@ -348,6 +360,27 @@ describe('KAGInterpreter', () => {
       expect(frame2.text).toBe('rerouted')
     })
 
+    it('[return target=*label] resolves the target in the caller label scope', async () => {
+      const interp = new KAGInterpreter([
+        { type: 'Label', name: 'target' },
+        { type: 'Text', content: 'caller-target' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ])
+
+      const appended = interp.appendTokens([
+        { type: 'Text', content: 'callee-target' },
+        { type: 'Tag', name: 'l', attrs: {} },
+        { type: 'Tag', name: 'return', attrs: { target: '*target' } },
+      ])
+
+      interp.callCrossFile(appended.offset, appended.labels, '')
+      const frame1 = await interp.advance()
+      expect(frame1.text).toBe('callee-target')
+
+      const frame2 = await interp.advance()
+      expect(frame2.text).toBe('caller-target')
+    })
+
     it('honors cond on normal tags', async () => {
       const tokens: KagToken[] = [
         { type: 'Tag', name: 'flag', attrs: { name: 'show', value: 'false' } },
@@ -452,6 +485,40 @@ describe('KAGInterpreter', () => {
       const frame2 = await interp.advance()
       expect(frame2.text).toBe('after')
     })
+
+    it('[move] + [wm] waits, then commits the final layer position', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'image', attrs: { storage: 'hero.png', layer: '0', page: 'fore', visible: 'true', left: '0', top: '0' } },
+        { type: 'Tag', name: 'move', attrs: { layer: '0', page: 'fore', time: '150', path: '(10, 20, 255)(30, 40, 200)' } },
+        { type: 'Tag', name: 'wm', attrs: { canskip: 'true' } },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.isWaitingTimer).toBe(true)
+      expect(frame.waitTime).toBe(150)
+      interp.onTimedWaitComplete()
+      const settled = await interp.advance()
+      const layer = settled.layers.find(entry => entry.id === 0)
+      expect(layer?.x).toBe(30)
+      expect(layer?.y).toBe(40)
+      expect(layer?.opacity).toBe(200)
+    })
+
+    it('[ws] waits for the matching audio buffer', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'playse', attrs: { storage: 'step.wav', buf: '0' } },
+        { type: 'Tag', name: 'ws', attrs: { buf: '0', canskip: 'true' } },
+        { type: 'Text', content: 'done' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const waiting = await interp.advance()
+      expect(waiting.isEnd).toBe(false)
+      expect(interp.isWaitingAudio()).toBe(true)
+      interp.onAudioPlaybackComplete('se', 0)
+      const settled = await interp.advance()
+      expect(settled.text).toBe('done')
+    })
   })
 
   describe('[trans] and [wt]', () => {
@@ -467,6 +534,13 @@ describe('KAGInterpreter', () => {
       expect(frame1.isWaitingTransition).toBe(true)
       expect(frame1.transition?.method).toBe('crossfade')
       expect(frame1.transition?.time).toBe(800)
+      expect(frame1.transition?.entries).toEqual([
+        { layer: 'base', method: 'crossfade', time: 800 },
+        { layer: 0, method: 'crossfade', time: 800 },
+        { layer: 1, method: 'crossfade', time: 800 },
+        { layer: 2, method: 'crossfade', time: 800 },
+        { layer: 3, method: 'crossfade', time: 800 },
+      ])
 
       interp.onTransitionComplete()
       const frame2 = await interp.advance()
@@ -519,6 +593,19 @@ describe('KAGInterpreter', () => {
       const interp = new KAGInterpreter(tokens)
       const frame = await interp.advance()
       expect(frame.transition?.layers).toEqual(['base'])
+    })
+
+    it('keeps per-layer transition definitions when base and explicit foreground transitions are mixed', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'trans', attrs: { layer: 'base', method: 'crossfade', time: '500' } },
+        { type: 'Tag', name: 'trans', attrs: { layer: '0', method: 'scroll', time: '1000' } },
+        { type: 'Tag', name: 'wt', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.transition?.entries.some(entry => entry.layer === 'base' && entry.method === 'crossfade' && entry.time === 500)).toBe(true)
+      expect(frame.transition?.entries.some(entry => entry.layer === 0 && entry.method === 'scroll' && entry.time === 1000)).toBe(true)
+      expect(frame.transition?.time).toBe(1000)
     })
 
     it('stoptrans commits the pending transition immediately', async () => {
