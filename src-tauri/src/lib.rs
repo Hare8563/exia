@@ -1,5 +1,6 @@
 mod kag_parser;
 pub mod xp3;
+mod asset_commands;
 
 use std::fs;
 
@@ -24,7 +25,14 @@ fn parse_kag_text(content: String) -> Result<Vec<kag_parser::KagToken>, String> 
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
-    .invoke_handler(tauri::generate_handler![save_scenario, parse_kag_text])
+    .invoke_handler(tauri::generate_handler![
+      save_scenario,
+      parse_kag_text,
+      asset_commands::asset_app_data_dir,
+      asset_commands::asset_read_manifest,
+      asset_commands::asset_write_manifest,
+      asset_commands::asset_download_and_extract,
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
