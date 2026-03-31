@@ -35,9 +35,15 @@ pub fn extract_xp3(data: &[u8]) -> Result<Vec<Xp3Entry>, String> {
     if flag & 0x07 == INDEX_ENCODE_ZLIB {
         let comp_size = r_u64(data, pos) as usize; pos += 8;
         let orig_size = r_u64(data, pos) as usize; pos += 8;
+        if pos + comp_size > data.len() {
+            return Err(format!("index data out of bounds: pos={} comp_size={} len={}", pos, comp_size, data.len()));
+        }
         index_body = zlib_decompress(&data[pos..pos+comp_size], orig_size)?;
     } else {
         let orig_size = r_u64(data, pos) as usize; pos += 8;
+        if pos + orig_size > data.len() {
+            return Err(format!("index data out of bounds: pos={} orig_size={} len={}", pos, orig_size, data.len()));
+        }
         index_body = data[pos..pos+orig_size].to_vec();
     }
 
@@ -47,6 +53,9 @@ pub fn extract_xp3(data: &[u8]) -> Result<Vec<Xp3Entry>, String> {
     while idx + 12 <= index_body.len() {
         let tag = &index_body[idx..idx+4]; idx += 4;
         let chunk_size = r_u64(&index_body, idx) as usize; idx += 8;
+        if idx + chunk_size > index_body.len() {
+            return Err(format!("chunk out of bounds: idx={} chunk_size={} len={}", idx, chunk_size, index_body.len()));
+        }
         let chunk = &index_body[idx..idx+chunk_size]; idx += chunk_size;
 
         if tag != b"File" { continue; }
@@ -62,6 +71,9 @@ pub fn extract_xp3(data: &[u8]) -> Result<Vec<Xp3Entry>, String> {
 
             if stag == b"info" && sbody.len() >= 22 {
                 let name_units = r_u16(sbody, 20) as usize;
+                if sbody.len() < 22 + name_units * 2 {
+                    return Err(format!("info name out of bounds: sbody.len()={} name_units={}", sbody.len(), name_units));
+                }
                 let name_bytes = &sbody[22..22+name_units*2];
                 let utf16: Vec<u16> = name_bytes.chunks(2)
                     .map(|c| u16::from_le_bytes([c[0], c[1]]))
@@ -83,6 +95,9 @@ pub fn extract_xp3(data: &[u8]) -> Result<Vec<Xp3Entry>, String> {
         if let Some(name) = filename {
             let mut file_data = Vec::new();
             for (offset, org_size, arc_size, compressed) in &segments {
+                if *offset + *arc_size > data.len() {
+                    return Err(format!("segment data out of bounds: offset={} arc_size={} len={}", offset, arc_size, data.len()));
+                }
                 let seg = &data[*offset..*offset+*arc_size];
                 if *compressed {
                     file_data.extend(zlib_decompress(seg, *org_size)?);
