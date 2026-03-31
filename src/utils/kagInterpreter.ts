@@ -462,9 +462,11 @@ export class KAGInterpreter {
         this.waitingAudio = { kind: 'se', buf, canSkip: this.parseBooleanAttr(attrs.canskip, false) }
         return 'pause'
       }
-      case 'wa':
-      case 'wv':
+      case 'wa': return 'continue'
+      case 'wv': {
+        // Wait for video playback to end — video not implemented, treat as no-op
         return 'continue'
+      }
       case 'stopquake':
         this.activeQuake = undefined
         return 'continue'
@@ -494,6 +496,11 @@ export class KAGInterpreter {
         return 'continue'
 
       case 'layopt': this.handleLayopt(attrs); return 'continue'
+
+      // Video tags — not implemented (no video playback support)
+      case 'video': case 'playvideo': case 'stopvideo': case 'preparevideo':
+      case 'wp': case 'videoevent': case 'videolayer':
+        return 'continue'
 
       // KAG3 no-ops
       case 'nowait': case 'endnowait':
