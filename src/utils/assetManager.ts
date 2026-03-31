@@ -1,6 +1,9 @@
 // src/utils/assetManager.ts
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { AssetManifest, FirestorePack } from '@/types/asset'
+import { collection, getDocs } from 'firebase/firestore'
+import { getDownloadURL, ref } from 'firebase/storage'
+import { db, storage } from '@/firebase'
 
 export class AssetManager {
   private appDataDir: string | null = null
@@ -34,15 +37,49 @@ export class AssetManager {
   }
 
   // Firebase integration — stubbed until Task 9
-  async checkUpdates(_userRoles: string[]): Promise<FirestorePack[]> {
-    throw new Error('checkUpdates: not implemented yet')
+  async checkUpdates(userRoles: string[]): Promise<FirestorePack[]> {
+    const snapshot = await getDocs(collection(db, 'packs'))
+    const updates: FirestorePack[] = []
+
+    for (const docSnap of snapshot.docs) {
+      const pack = { id: docSnap.id, ...docSnap.data() } as FirestorePack
+      if (!userRoles.includes(pack.requiredRole)) continue
+      const local = this.packsCache[pack.id]
+      if (!local || local.version !== pack.version) {
+        updates.push(pack)
+      }
+    }
+    return updates
   }
 
   async downloadPack(
-    _pack: FirestorePack,
-    _onProgress?: (pct: number) => void,
+    pack: FirestorePack,
+    onProgress?: (pct: number) => void,
   ): Promise<void> {
-    throw new Error('downloadPack: not implemented yet')
+    onProgress?.(5)
+
+    // 1. Get download URL from Firebase Storage
+    const packRef = ref(storage, pack.storageRef)
+    const url = await getDownloadURL(packRef)
+
+    onProgress?.(10)
+
+    // 2. Rust sync command: download, MD5 verify, XP3 extract
+    const extracted = await invoke<{ id: string; extracted_path: string }[]>(
+      'asset_download_and_extract',
+      { url, packId: pack.id, expectedMd5: pack.md5 },
+    )
+
+    onProgress?.(80)
+
+    // 3. Update manifest (merge, preserve existing packs)
+    const newAssets: Record<string, string> = {}
+    for (const entry of extracted) {
+      newAssets[entry.id] = entry.extracted_path
+    }
+    await this.applyPackToManifest(pack.id, pack.version, newAssets)
+
+    onProgress?.(100)
   }
 
   // Update in-memory cache and manifest.json after a pack download
