@@ -1,5 +1,5 @@
 // src/utils/kagInterpreter.ts
-import type { KagToken, KAGLayer, KAGDisplayFrame, FlagValue } from '@/types/kag'
+import type { KagToken, KAGLayer, KAGDisplayFrame, FlagValue, KAGUIState, KAGUIButton } from '@/types/kag'
 
 const DEFAULT_LAYER = (id: 'base' | number): KAGLayer => ({
   id, file: undefined, visible: false, x: 0, y: 0, opacity: 255, scale: 1,
@@ -21,10 +21,23 @@ export class KAGInterpreter {
 
   private flags: Record<string, FlagValue> = {}
   private systemFlags: Record<string, FlagValue> = {}   // sf.xxx
+  private tempFlags: Record<string, FlagValue> = {}     // tf.xxx
+  private kagValues: Record<string, FlagValue> = {
+    loaded_flag: false,
+    skipMode: false,
+    autoMode: false,
+    inStable: 1,
+  }
   private macroParamStack: Record<string, string>[] = [] // mp.xxx per call depth
   private textBuffer = ''
   private speakerName: string | undefined
   private currentMessageLayer = 'message0'
+  private uiButtons = new Map<string, KAGUIButton>()
+  private historyOutput = true
+  private historyEnabled = true
+  private rclickEnabled = false
+  private startAnchorEnabled = false
+  private clickableMap: KAGUIState['clickableMap'] = { enabled: false }
   private voiceFile: string | undefined
   private voiceSpeakerId: number | undefined
   private seFile: string | undefined
@@ -183,6 +196,7 @@ export class KAGInterpreter {
       case 'l': return 'pause'
       case 'p': return 'pause'
       case 's': return 'pause'
+      case 'waitclick': return 'pause'
 
       case 'wt': {
         if (this.runningTransitions.length === 0) return 'continue'
@@ -203,7 +217,36 @@ export class KAGInterpreter {
       case 'r': this.textBuffer += '\n'; return 'continue'
       case 'cm': this.textBuffer = ''; return 'continue'
       case 'er': this.textBuffer = ''; return 'continue'
+      case 'ct':
+        this.textBuffer = ''
+        this.speakerName = undefined
+        this.currentMessageLayer = 'message0'
+        return 'continue'
       case 'name': this.speakerName = this.expandAttrValue(attrs.text ?? ''); return 'continue'
+      case 'emb':
+        this.textBuffer += this.flagValueToString(this.evalTjs(attrs.exp ?? '', 'expr'))
+        return 'continue'
+      case 'history':
+        this.handleHistory(attrs)
+        return 'continue'
+      case 'rclick':
+        this.rclickEnabled = this.parseBooleanAttr(attrs.enabled, true)
+        return 'continue'
+      case 'startanchor':
+        this.startAnchorEnabled = this.parseBooleanAttr(attrs.enabled, true)
+        return 'continue'
+      case 'button':
+        this.handleButton(attrs)
+        return 'continue'
+      case 'mapimage':
+        this.clickableMap.image = attrs.storage
+        return 'continue'
+      case 'mapaction':
+        this.clickableMap.action = attrs.storage
+        return 'continue'
+      case 'mapdisable':
+        this.clickableMap.enabled = false
+        return 'continue'
 
       case 'current':
         if (attrs.layer) this.currentMessageLayer = attrs.layer
@@ -274,10 +317,14 @@ export class KAGInterpreter {
       case 'call': this.handleCall(attrs); return 'continue'
       case 'return': this.handleReturn(attrs); return 'continue'
       case 'if': this.handleIf(attrs); return 'continue'
+      case 'ignore': this.handleIgnore(attrs); return 'continue'
       case 'else': case 'elsif': this.skipToEndif(); return 'continue'
       case 'endif': return 'continue'
+      case 'endignore': return 'continue'
       case 'macro': this.skipMacroBody(); return 'continue'
       case 'endmacro': this.handleReturn(); return 'continue'
+      case 'iscript': this.skipToMatchingTag('iscript', 'endscript'); return 'continue'
+      case 'endscript': return 'continue'
 
       case 'eval': this.handleEval(attrs.exp ?? ''); return 'continue'
 
@@ -289,6 +336,7 @@ export class KAGInterpreter {
       case 'layopt': this.handleLayopt(attrs); return 'continue'
 
       // KAG3 no-ops
+      case 'nowait': case 'endnowait':
       case 'ws': case 'wb': case 'wq': case 'wv':
       case 'hact': case 'endhact':
       case 'laycount': case 'position':
@@ -328,16 +376,8 @@ export class KAGInterpreter {
       return defaultValue !== undefined ? this.expandAttrValue(defaultValue) : ''
     }
     if (val.startsWith('&')) {
-      const expr = val.slice(1)
-      const fM = expr.match(/^f\.(\w+)$/)
-      if (fM) return String(this.flags[fM[1]] ?? '')
-      const sfM = expr.match(/^sf\.(\w+)$/)
-      if (sfM) return String(this.systemFlags[sfM[1]] ?? 0)
-      const mpM = expr.match(/^mp\.(\w+)$/)
-      if (mpM) {
-        const params = this.macroParamStack[this.macroParamStack.length - 1]
-        return String(params?.[mpM[1]] ?? '')
-      }
+      const result = this.evalTjs(val.slice(1), 'expr')
+      return this.flagValueToString(result)
     }
     if ((val.startsWith('"') && val.endsWith('"')) ||
         (val.startsWith("'") && val.endsWith("'"))) {
@@ -401,7 +441,18 @@ export class KAGInterpreter {
   // [layopt]: update layer visibility/opacity without clearing content
   private handleLayopt(attrs: Record<string, string>) {
     const layerStr = attrs.layer ?? ''
-    // Only handle image layers (base or 0-9); message layers are no-ops
+    if (layerStr.startsWith('message')) {
+      const visible = attrs.visible !== undefined ? this.parseBooleanAttr(attrs.visible, true) : undefined
+      if (visible !== undefined) {
+        for (const [graphic, button] of this.uiButtons) {
+          if (button.layer === layerStr) {
+            this.uiButtons.set(graphic, { ...button, visible })
+          }
+        }
+      }
+      return
+    }
+    // Only handle image layers (base or 0-9); message layers are handled above.
     if (layerStr !== 'base' && !/^\d+$/.test(layerStr)) return
     const key: 'base' | number = layerStr === 'base' ? 'base' : parseInt(layerStr)
     const page = attrs.page ?? 'fore'
@@ -473,6 +524,12 @@ export class KAGInterpreter {
     }
   }
 
+  private handleIgnore(attrs: Record<string, string>) {
+    if (this.evalExp(attrs.exp ?? '')) {
+      this.skipToMatchingTag('ignore', 'endignore')
+    }
+  }
+
   private skipToEndif() {
     let depth = 1
     while (this.cursor < this.tokens.length) {
@@ -497,66 +554,52 @@ export class KAGInterpreter {
   }
 
   private skipMacroBody() {
+    this.skipToMatchingTag('macro', 'endmacro')
+  }
+
+  private skipToMatchingTag(startTag: string, endTag: string) {
+    let depth = 1
     while (this.cursor < this.tokens.length) {
       const tok = this.tokens[this.cursor]
       this.cursor++
-      if (tok.type === 'Tag' && tok.name === 'endmacro') return
+      if (tok.type !== 'Tag') continue
+      if (tok.name === startTag) {
+        depth++
+        continue
+      }
+      if (tok.name === endTag) {
+        depth--
+        if (depth === 0) return
+      }
     }
   }
 
   private handleEval(exp: string) {
-    const m = exp.trim().match(/^(f\.|sf\.)(\w+)\s*=\s*(.+)$/)
-    if (!m) return
-    const [, prefix, key, rawVal] = m
-    const val = this.resolveRValue(rawVal.trim())
-    if (prefix === 'f.') this.flags[key] = val
-    else this.systemFlags[key] = val
+    this.evalTjs(exp, 'statement')
   }
 
-  private resolveRValue(raw: string): FlagValue {
-    if (raw.startsWith('mp.')) {
-      const key = raw.slice(3)
-      const params = this.macroParamStack[this.macroParamStack.length - 1]
-      const v = params?.[key]
-      if (v === undefined) return ''
-      const n = Number(v); return isNaN(n) ? v : n
+  private handleHistory(attrs: Record<string, string>) {
+    if (attrs.output !== undefined) {
+      this.historyOutput = this.parseBooleanAttr(attrs.output, true)
     }
-    if (raw.startsWith('f.')) return this.flags[raw.slice(2)] ?? ''
-    if (raw.startsWith('sf.')) return this.systemFlags[raw.slice(3)] ?? 0
-    if (raw === "''" || raw === '""') return ''
-    if ((raw.startsWith("'") && raw.endsWith("'")) ||
-        (raw.startsWith('"') && raw.endsWith('"'))) return raw.slice(1, -1)
-    const n = Number(raw)
-    if (!isNaN(n)) return n
-    return raw
+    if (attrs.enabled !== undefined) {
+      this.historyEnabled = this.parseBooleanAttr(attrs.enabled, true)
+    }
+  }
+
+  private handleButton(attrs: Record<string, string>) {
+    const graphic = attrs.graphic
+    if (!graphic) return
+    this.uiButtons.set(graphic, {
+      layer: this.currentMessageLayer,
+      graphic,
+      visible: true,
+      exp: attrs.exp,
+    })
   }
 
   private evalExp(exp: string): boolean {
-    const tryEval = (e: string): boolean => {
-      e = e.trim()
-      if (e.includes('&&')) return e.split('&&').every(part => tryEval(part))
-      if (e.includes('||')) return e.split('||').some(part => tryEval(part))
-      const m = e.match(/^(f\.|sf\.|mp\.)(\w+)\s*(==|!=|>=|<=|>|<)\s*(.+)$/)
-      if (!m) return false
-      const [, prefix, key, op, rawVal] = m
-      let actual: FlagValue
-      if (prefix === 'f.') actual = this.flags[key]
-      else if (prefix === 'sf.') actual = this.systemFlags[key] ?? 0
-      else {
-        const params = this.macroParamStack[this.macroParamStack.length - 1]
-        const v = params?.[key]
-        actual = v !== undefined ? (isNaN(Number(v)) ? v : Number(v)) : ''
-      }
-      const expected = this.parseValue(rawVal.trim().replace(/^["']|["']$/g, ''))
-      if (op === '==') return actual === expected
-      if (op === '!=') return actual !== expected
-      if (op === '>') return Number(actual) > Number(expected)
-      if (op === '<') return Number(actual) < Number(expected)
-      if (op === '>=') return Number(actual) >= Number(expected)
-      if (op === '<=') return Number(actual) <= Number(expected)
-      return false
-    }
-    return tryEval(exp)
+    return Boolean(this.evalTjs(exp, 'expr'))
   }
 
   private parseValue(v: string): FlagValue {
@@ -581,6 +624,113 @@ export class KAGInterpreter {
     }
     const elapsed = Date.now() - this.waitOriginTime
     return Math.max(0, rawTime - elapsed)
+  }
+
+  private evalTjs(source: string, mode: 'expr' | 'statement'): unknown {
+    const js = this.transpileTjsToJs(source)
+    const context = this.createTjsContext()
+    try {
+      const body = mode === 'statement'
+        ? `with (context) { ${js}; }`
+        : `with (context) { return (${js}); }`
+      return Function('context', body)(context)
+    } catch (error) {
+      console.warn('[KAG] TJS eval failed', { source, js, mode, error })
+      return mode === 'expr' ? '' : undefined
+    }
+  }
+
+  private transpileTjsToJs(source: string): string {
+    return source
+      .replace(/\r?\n/g, ' ')
+      .replace(/\btrue\b/g, 'true')
+      .replace(/\bfalse\b/g, 'false')
+  }
+
+  private createTjsContext() {
+    const params = this.macroParamStack[this.macroParamStack.length - 1] ?? {}
+
+    const createFlagProxy = (
+      store: Record<string, FlagValue>,
+      defaultsToZero: boolean,
+    ) => new Proxy(store, {
+      get: (target, prop) => {
+        if (typeof prop !== 'string') return undefined
+        if (!(prop in target)) return defaultsToZero ? 0 : ''
+        return target[prop]
+      },
+      set: (target, prop, value) => {
+        if (typeof prop === 'string') {
+          target[prop] = this.normalizeEvalValue(value)
+        }
+        return true
+      },
+    })
+
+    const mpProxy = new Proxy(params, {
+      get: (target, prop) => {
+        if (typeof prop !== 'string') return undefined
+        return this.normalizeMacroParamValue(target[prop])
+      },
+      set: (target, prop, value) => {
+        if (typeof prop === 'string') {
+          target[prop] = this.flagValueToString(this.normalizeEvalValue(value))
+        }
+        return true
+      },
+    })
+
+    const kagValues = this.kagValues
+    const kagProxy = new Proxy(kagValues as Record<string, unknown>, {
+      get: (target, prop) => {
+        if (typeof prop !== 'string') return undefined
+        if (prop === 'f') return this.foreLayers
+        if (prop === 'sf') return this.systemFlags
+        if (prop === 'tf') return this.tempFlags
+        if (prop === 'fore') return { layers: Object.fromEntries(this.foreLayers), base: this.foreLayers.get('base') }
+        if (prop === 'back') return { layers: Object.fromEntries(this.backLayers), base: this.backLayers.get('base') }
+        if (!(prop in target)) return undefined
+        return target[prop]
+      },
+      set: (target, prop, value) => {
+        if (typeof prop === 'string') {
+          target[prop] = this.normalizeEvalValue(value)
+        }
+        return true
+      },
+    })
+
+    return {
+      f: createFlagProxy(this.flags, false),
+      sf: createFlagProxy(this.systemFlags, true),
+      tf: createFlagProxy(this.tempFlags, false),
+      mp: mpProxy,
+      kag: kagProxy,
+      true: true,
+      false: false,
+      null: null,
+      undefined,
+    }
+  }
+
+  private normalizeMacroParamValue(value: string | undefined): FlagValue {
+    if (value === undefined) return ''
+    const n = Number(value)
+    return Number.isNaN(n) ? value : n
+  }
+
+  private normalizeEvalValue(value: unknown): FlagValue {
+    if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
+      return value
+    }
+    if (value == null) return ''
+    return String(value)
+  }
+
+  private flagValueToString(value: unknown): string {
+    if (value == null) return ''
+    if (typeof value === 'boolean') return value ? 'true' : 'false'
+    return String(value)
   }
 
   private buildFrame(isEnd: boolean): KAGDisplayFrame {
@@ -614,6 +764,14 @@ export class KAGInterpreter {
       isWaitingTimer: waitTime !== undefined,
       waitTime,
       waitCanSkip,
+      uiState: {
+        historyOutput: this.historyOutput,
+        historyEnabled: this.historyEnabled,
+        rclickEnabled: this.rclickEnabled,
+        startAnchorEnabled: this.startAnchorEnabled,
+        buttons: Array.from(this.uiButtons.values()).map(button => ({ ...button })),
+        clickableMap: { ...this.clickableMap },
+      },
       isEnd,
     }
     this.choiceBuffer = []

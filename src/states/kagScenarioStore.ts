@@ -22,6 +22,16 @@ const INITIAL: KAGScenarioState = {
   isWaitingTransition: false,
   currentTransition: undefined,
   isEnd: false,
+  uiState: {
+    historyOutput: true,
+    historyEnabled: true,
+    rclickEnabled: false,
+    startAnchorEnabled: false,
+    buttons: [],
+    clickableMap: {
+      enabled: false,
+    },
+  },
   flags: {},
   logs: [],
   transitionCompleteCallback: null,

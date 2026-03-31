@@ -219,6 +219,33 @@ describe('KAGInterpreter', () => {
       expect(frame.text).toBe('yes')
     })
 
+    it('evaluates TJS-style bracket assignment in [eval]', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'eval', attrs: { exp: 'sf[mp.back_cg] = 1' } },
+        { type: 'Tag', name: 'if', attrs: { exp: 'sf[mp.back_cg] == 1' } },
+        { type: 'Text', content: 'ok' },
+        { type: 'Tag', name: 'endif', attrs: {} },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      ;(interp as unknown as { macroParamStack: Record<string, string>[] }).macroParamStack = [{ back_cg: 'bg_01.webp' }]
+      const frame = await interp.advance()
+      expect(frame.text).toBe('ok')
+    })
+
+    it('evaluates kag.* variables in [eval] and [if]', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'eval', attrs: { exp: 'kag.loaded_flag = true' } },
+        { type: 'Tag', name: 'if', attrs: { exp: 'kag.loaded_flag == true && f.movie_flag != 1' } },
+        { type: 'Text', content: 'loaded' },
+        { type: 'Tag', name: 'endif', attrs: {} },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens, { movie_flag: 0 })
+      const frame = await interp.advance()
+      expect(frame.text).toBe('loaded')
+    })
+
     it('nested [if] blocks: outer false skips entire nested structure', async () => {
       const tokens: KagToken[] = [
         { type: 'Tag', name: 'if', attrs: { exp: 'f.outer == true' } },  // false → skip
@@ -312,6 +339,84 @@ describe('KAGInterpreter', () => {
       const interp = new KAGInterpreter(tokens)
       const frame = await interp.advance()
       expect(frame.speakerName).toBe('Narrator')
+    })
+
+    it('evaluates [&...] attribute expressions as JavaScript-compatible TJS', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'eval', attrs: { exp: 'f.clearTime = 250' } },
+        { type: 'Tag', name: 'wait', attrs: { time: '&f.clearTime', canskip: 'false' } },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.isWaitingTimer).toBe(true)
+      expect(frame.waitTime).toBe(250)
+      expect(frame.waitCanSkip).toBe(false)
+    })
+
+    it('[emb] injects evaluated expression results into text', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'eval', attrs: { exp: "f.value = 'world'" } },
+        { type: 'Text', content: 'hello ' },
+        { type: 'Tag', name: 'emb', attrs: { exp: 'f.value' } },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('hello world')
+    })
+
+    it('[ignore] skips content until [endignore] when expression is true', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'ignore', attrs: { exp: 'true' } },
+        { type: 'Text', content: 'hidden' },
+        { type: 'Tag', name: 'endignore', attrs: {} },
+        { type: 'Text', content: 'shown' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('shown')
+    })
+
+    it('[iscript] body is skipped until [endscript]', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'iscript', attrs: {} },
+        { type: 'Text', content: 'var hidden = 1;' },
+        { type: 'Tag', name: 'endscript', attrs: {} },
+        { type: 'Text', content: 'visible' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('visible')
+    })
+
+    it('[ct] resets message target and clears displayed text', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'name', attrs: { text: 'Alice' } },
+        { type: 'Text', content: 'old' },
+        { type: 'Tag', name: 'ct', attrs: {} },
+        { type: 'Text', content: 'new' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('new')
+      expect(frame.speakerName).toBeUndefined()
+    })
+
+    it('[waitclick] pauses like a click wait point', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Text', content: 'before' },
+        { type: 'Tag', name: 'waitclick', attrs: {} },
+        { type: 'Text', content: 'after' },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame1 = await interp.advance()
+      expect(frame1.text).toBe('before')
+      const frame2 = await interp.advance()
+      expect(frame2.text).toBe('after')
     })
   })
 
@@ -407,6 +512,37 @@ describe('KAGInterpreter', () => {
       interp.selectChoice('*option_b')
       const resultFrame = await interp.advance()
       expect(resultFrame.text).toBe('chose B')
+    })
+
+    it('updates UI state for history, rclick and startanchor tags', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'history', attrs: { output: 'false', enabled: 'false' } },
+        { type: 'Tag', name: 'rclick', attrs: { enabled: 'true' } },
+        { type: 'Tag', name: 'startanchor', attrs: { enabled: 'true' } },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.uiState.historyOutput).toBe(false)
+      expect(frame.uiState.historyEnabled).toBe(false)
+      expect(frame.uiState.rclickEnabled).toBe(true)
+      expect(frame.uiState.startAnchorEnabled).toBe(true)
+    })
+
+    it('registers button tags and hides them through message-layer layopt', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'current', attrs: { layer: 'message8' } },
+        { type: 'Tag', name: 'button', attrs: { graphic: 'message_bt_auto', exp: 'kag.enterAutoMode()' } },
+        { type: 'Tag', name: 'current', attrs: { layer: 'message0' } },
+        { type: 'Tag', name: 'layopt', attrs: { layer: 'message8', visible: 'false' } },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      const button = frame.uiState.buttons.find(entry => entry.graphic === 'message_bt_auto')
+      expect(button).toBeDefined()
+      expect(button?.visible).toBe(false)
+      expect(button?.layer).toBe('message8')
     })
   })
 })

@@ -11,6 +11,7 @@ export const useNavigationStore = create<NavigationStore>((set) => ({
     isAutoPlay: false,
     isLogOpen: false,
     isSkipModalOpen: false,
+    isConfigOpen: false,
   },
   setNavigation: (data) => set((state) => ({
     navigation: typeof data === 'function' ? data(state.navigation) : { ...state.navigation, ...data }

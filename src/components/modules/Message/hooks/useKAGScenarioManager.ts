@@ -34,11 +34,12 @@ export function useKAGScenarioManager() {
       currentChoices: frame.choices,
       isWaitingTransition: frame.isWaitingTransition,
       currentTransition: frame.transition,
+      uiState: frame.uiState,
       isEnd: frame.isEnd,
     }
 
     // Append to log if there's text
-    if (frame.text.trim()) {
+    if (frame.text.trim() && frame.uiState.historyOutput) {
       const entry: KAGLogEntry = { text: frame.text, speakerName: frame.speakerName }
       updates.logs = [...useKAGScenarioStore.getState().logs, entry]
     }

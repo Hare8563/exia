@@ -40,6 +40,7 @@ export type KAGDisplayFrame = {
   isWaitingTimer: boolean
   waitTime?: number
   waitCanSkip: boolean
+  uiState: KAGUIState
   isEnd: boolean
 }
 
@@ -64,7 +65,30 @@ export type KAGScenarioState = {
   isWaitingTransition: boolean
   currentTransition?: KAGDisplayFrame['transition']
   isEnd: boolean
+  uiState: KAGUIState
   flags: Record<string, FlagValue>
   logs: KAGLogEntry[]
   transitionCompleteCallback: (() => void) | null
+}
+
+export type KAGUIButton = {
+  layer: string
+  graphic: string
+  visible: boolean
+  exp?: string
+}
+
+export type KAGClickableMapState = {
+  enabled: boolean
+  image?: string
+  action?: string
+}
+
+export type KAGUIState = {
+  historyOutput: boolean
+  historyEnabled: boolean
+  rclickEnabled: boolean
+  startAnchorEnabled: boolean
+  buttons: KAGUIButton[]
+  clickableMap: KAGClickableMapState
 }

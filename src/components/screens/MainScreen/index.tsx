@@ -9,6 +9,7 @@ import { Voice } from '@/components/modules/Voice'
 import { Bgm } from '@/components/modules/Bgm'
 import { useKAGScenarioManager } from '@/components/modules/Message/hooks/useKAGScenarioManager'
 import { useScreenStore } from '@/states/screenStore'
+import { useNavigationStore } from '@/states/navigationStore'
 import { SCREEN } from '@/constants'
 
 export const MainScreen: React.FC = () => {
@@ -16,6 +17,9 @@ export const MainScreen: React.FC = () => {
   const flags = useKAGScenarioStore(s => s.flags)
   const resetScenario = useKAGScenarioStore(s => s.reset)
   const choices = useKAGScenarioStore(s => s.currentChoices)
+  const uiState = useKAGScenarioStore(s => s.uiState)
+  const navigation = useNavigationStore(s => s.navigation)
+  const setNavigation = useNavigationStore(s => s.setNavigation)
   const { setScreen } = useScreenStore()
 
   useEffect(() => {
@@ -49,8 +53,19 @@ export const MainScreen: React.FC = () => {
     await goToNextLine()
   }, [choices, isScenarioEnd, goToNextLine, setScreen])
 
+  const handleContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!uiState.rclickEnabled) return
+    event.preventDefault()
+    if (uiState.historyEnabled) {
+      setNavigation({
+        ...navigation,
+        isLogOpen: true,
+      })
+    }
+  }, [navigation, setNavigation, uiState.historyEnabled, uiState.rclickEnabled])
+
   return (
-    <div className="relative w-full h-full cursor-pointer" onClick={handleScreenClick}>
+    <div className="relative w-full h-full cursor-pointer" onClick={handleScreenClick} onContextMenu={handleContextMenu}>
       <Voice />
       <Bgm />
       <ThreeCanvas />

@@ -105,6 +105,7 @@ export type Navigation = {
   isAutoPlay: boolean;
   isLogOpen: boolean;
   isSkipModalOpen: boolean; // スキップモーダル表示状態を追加
+  isConfigOpen?: boolean;
 };
 
 export type Config = {};
