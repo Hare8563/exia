@@ -31,6 +31,7 @@ export function useKAGScenarioManager() {
       currentSpeakerName: frame.speakerName,
       currentBgmFile: frame.bgmFile ?? useKAGScenarioStore.getState().currentBgmFile,
       currentSeFile: frame.seFile,
+      currentSeFiles: frame.seFiles ?? useKAGScenarioStore.getState().currentSeFiles,
       currentVoiceFile: frame.voiceFile,
       currentVoiceSpeakerId: frame.voiceSpeakerId,
       currentChoices: frame.choices,
@@ -93,21 +94,22 @@ export function useKAGScenarioManager() {
         if (sessionId !== sessionRef.current) return
         const label = (target ?? '').replace(/^\*/, '')
         const flags = useKAGScenarioStore.getState().flags
-        interp.loadTokens(tokens, label, flags)
+        const { offset, labels } = interp.appendTokens(tokens)
+        interp.jumpCrossFile(offset, labels, label, flags)
         await doAdvanceRef.current()
       } else if (msg.startsWith('Error: CROSS_FILE_CALL:')) {
         const [file, target] = msg.replace('Error: CROSS_FILE_CALL:', '').split(':')
         const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
         if (sessionId !== sessionRef.current) return
-        const offset = interp.appendTokens(tokens)
-        interp.callCrossFile(offset, target ?? '')
+        const { offset, labels } = interp.appendTokens(tokens)
+        interp.callCrossFile(offset, labels, target ?? '')
         await doAdvanceRef.current()
       } else if (msg.startsWith('Error: CROSS_FILE_RETURN:')) {
         const [file, target] = msg.replace('Error: CROSS_FILE_RETURN:', '').split(':')
         const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
         if (sessionId !== sessionRef.current) return
-        const offset = interp.appendTokens(tokens)
-        interp.returnCrossFile(offset, target ?? '')
+        const { offset, labels } = interp.appendTokens(tokens)
+        interp.returnCrossFile(offset, labels, target ?? '')
         await doAdvanceRef.current()
       } else {
         console.error('[KAG] advance error:', err)
@@ -147,8 +149,8 @@ export function useKAGScenarioManager() {
     try {
       const normalizedFile = file.replace(/\.ks$/i, '')
       const tokens = await loadKAGTokens(`scenarios/${normalizedFile}`)
-      const offset = interp.appendTokens(tokens)
-      interp.callCrossFile(offset, typeof target === 'string' ? target : '')
+      const { offset, labels } = interp.appendTokens(tokens)
+      interp.callCrossFile(offset, labels, typeof target === 'string' ? target : '')
       await doAdvanceRef.current()
     } catch (error) {
       console.warn('[KAG] callExtraConductor failed', { file, target, error })
@@ -164,7 +166,8 @@ export function useKAGScenarioManager() {
       const tokens = await loadKAGTokens(`scenarios/${normalizedFile}`)
       const label = (target ?? '').replace(/^\*/, '')
       const flags = useKAGScenarioStore.getState().flags
-      interp.loadTokens(tokens, label, flags)
+      const { offset, labels } = interp.appendTokens(tokens)
+      interp.jumpCrossFile(offset, labels, label, flags)
       await doAdvanceRef.current()
       return
     }

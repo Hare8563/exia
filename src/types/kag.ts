@@ -7,6 +7,10 @@ export type KagToken =
   | { type: 'Text'; content: string }
   | { type: 'Newline' }
 
+export type FlagArray = FlagValue[]
+export type FlagObject = { [key: string]: FlagValue }
+export type FlagValue = boolean | number | string | FlagArray | FlagObject
+
 // A single layer in the visual stack.
 // id='base' is the background; 0-9 are foreground layers (characters, overlays).
 export type KAGLayer = {
@@ -26,6 +30,7 @@ export type KAGDisplayFrame = {
   layers: KAGLayer[]
   bgmFile?: string
   seFile?: string
+  seFiles?: Record<number, KAGSEChannel>
   voiceFile?: string
   voiceSpeakerId?: number           // VOICEVOX speaker id
   choices?: { text: string; target: string }[]
@@ -50,15 +55,13 @@ export type KAGLogEntry = {
   speakerName?: string
 }
 
-// Zustand store shape
-export type FlagValue = boolean | number | string
-
 export type KAGScenarioState = {
   layers: KAGLayer[]
   currentText: string
   currentSpeakerName?: string
   currentBgmFile?: string
   currentSeFile?: string
+  currentSeFiles?: Record<number, KAGSEChannel>
   currentVoiceFile?: string
   currentVoiceSpeakerId?: number
   currentChoices?: { text: string; target: string }[]
@@ -76,6 +79,11 @@ export type KAGUIButton = {
   graphic: string
   visible: boolean
   exp?: string
+}
+
+export type KAGSEChannel = {
+  file: string
+  playId: number
 }
 
 export type KAGClickableMapState = {

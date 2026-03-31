@@ -27,7 +27,12 @@ export type ScenarioCutIn = {
   isFullScreen?: boolean;
 };
 
-export type FlagValue = boolean | number | string;
+export type FlagValue =
+  | boolean
+  | number
+  | string
+  | FlagValue[]
+  | { [key: string]: FlagValue };
 
 export type ScenarioCondition = {
   flag: string;

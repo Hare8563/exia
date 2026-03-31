@@ -1,5 +1,5 @@
 // src/utils/kagInterpreter.ts
-import type { KagToken, KAGLayer, KAGDisplayFrame, FlagValue, KAGUIState, KAGUIButton } from '@/types/kag'
+import type { KagToken, KAGLayer, KAGDisplayFrame, FlagValue, KAGUIState, KAGUIButton, KAGSEChannel } from '@/types/kag'
 
 const DEFAULT_LAYER = (id: 'base' | number): KAGLayer => ({
   id, file: undefined, visible: false, x: 0, y: 0, opacity: 255, scale: 1,
@@ -42,11 +42,13 @@ export class KAGInterpreter {
   private voiceFile: string | undefined
   private voiceSpeakerId: number | undefined
   private seFile: string | undefined
+  private seFiles: Record<number, KAGSEChannel> = {}
+  private sePlayId = 0
   private bgmFile: string | undefined
   private choiceBuffer: { text: string; target: string }[] = []
-  private callStack: number[] = []
+  private callStack: Array<{ cursor: number; labels: Map<string, number> }> = []
   private macros = new Map<string, number>()
-  private labelMap = new Map<string, number>()
+  private currentLabelMap = new Map<string, number>()
 
   // Running transitions: [trans] adds immediately, [wt] waits for all to complete
   private runningTransitions: Array<{ method: string; time: number; layer?: 'base' | number }> = []
@@ -63,11 +65,12 @@ export class KAGInterpreter {
   }
 
   private buildMaps() {
+    this.currentLabelMap.clear()
     let i = 0
     while (i < this.tokens.length) {
       const tok = this.tokens[i]
       if (tok.type === 'Label') {
-        this.labelMap.set(tok.name, i)
+        this.currentLabelMap.set(tok.name, i)
       } else if (tok.type === 'Tag' && tok.name === 'macro' && tok.attrs.name) {
         this.macros.set(tok.attrs.name, i + 1)
       }
@@ -75,25 +78,27 @@ export class KAGInterpreter {
     }
   }
 
-  appendTokens(tokens: KagToken[]): number {
+  appendTokens(tokens: KagToken[]): { offset: number; labels: Map<string, number> } {
     const offset = this.tokens.length
+    const labels = new Map<string, number>()
     this.tokens = [...this.tokens, ...tokens]
     let i = offset
     while (i < this.tokens.length) {
       const tok = this.tokens[i]
       if (tok.type === 'Label') {
-        this.labelMap.set(tok.name, i)
+        labels.set(tok.name, i)
       } else if (tok.type === 'Tag' && tok.name === 'macro' && tok.attrs.name) {
         this.macros.set(tok.attrs.name, i + 1)
       }
       i++
     }
-    return offset
+    return { offset, labels }
   }
 
-  callCrossFile(offset: number, target: string) {
-    this.callStack.push(this.cursor)
+  callCrossFile(offset: number, labels: Map<string, number>, target: string) {
+    this.callStack.push({ cursor: this.cursor, labels: this.currentLabelMap })
     this.macroParamStack.push({})
+    this.currentLabelMap = labels
     this.cursor = offset
     if (target) {
       const label = target.replace(/^\*/, '')
@@ -142,7 +147,7 @@ export class KAGInterpreter {
   getLayersArray(): KAGLayer[] { return Array.from(this.foreLayers.values()) }
 
   jumpToLabel(label: string) {
-    const idx = this.labelMap.get(label)
+    const idx = this.currentLabelMap.get(label)
     if (idx !== undefined) this.cursor = idx
     else throw new Error(`Label not found: ${label}`)
   }
@@ -152,13 +157,10 @@ export class KAGInterpreter {
     this.jumpToLabel(label)
   }
 
-  loadTokens(tokens: KagToken[], label: string, flags?: Record<string, FlagValue>) {
-    this.tokens = tokens
-    this.cursor = 0
-    this.macros.clear(); this.labelMap.clear()
-    this.macroParamStack = []
+  jumpCrossFile(offset: number, labels: Map<string, number>, label: string, flags?: Record<string, FlagValue>) {
+    this.currentLabelMap = labels
+    this.cursor = offset
     if (flags) this.flags = flags
-    this.buildMaps()
     if (label) this.jumpToLabel(label)
   }
 
@@ -282,7 +284,14 @@ export class KAGInterpreter {
       // Audio — native tags
       case 'bgm': this.bgmFile = attrs.storage; return 'continue'
       case 'stopbgm': this.bgmFile = undefined; return 'continue'
-      case 'se': this.seFile = attrs.storage; return 'continue'
+      case 'se': {
+        const storage = attrs.storage ? this.expandAttrValue(attrs.storage) : undefined
+        if (storage) {
+          this.seFile = storage
+          this.seFiles[0] = { file: storage, playId: ++this.sePlayId }
+        }
+        return 'continue'
+      }
       case 'voice':
         if (attrs.storage) { this.voiceFile = attrs.storage; this.voiceSpeakerId = undefined }
         else if (attrs.speaker) { this.voiceSpeakerId = parseInt(attrs.speaker); this.voiceFile = undefined }
@@ -298,14 +307,29 @@ export class KAGInterpreter {
       case 'playse': case 'fadeinse': {
         const storage = attrs.storage ? this.expandAttrValue(attrs.storage) : undefined
         if (storage) {
-          // buf 2+ are voice buffers (per KAG3 macro convention)
           const buf = attrs.buf !== undefined ? parseInt(attrs.buf) : 1
           if (buf >= 2) this.voiceFile = storage
-          else this.seFile = storage
+          else {
+            this.seFile = storage
+            this.seFiles[buf] = { file: storage, playId: ++this.sePlayId }
+          }
         }
         return 'continue'
       }
-      case 'stopse': case 'fadeoutse': case 'seopt': case 'bgmopt':
+      case 'stopse': case 'fadeoutse':
+        if (attrs.buf !== undefined) {
+          const buf = parseInt(attrs.buf)
+          delete this.seFiles[buf]
+          if (buf === 0 || buf === 1) {
+            const remaining = Object.values(this.seFiles).at(-1)
+            this.seFile = remaining?.file
+          }
+        } else {
+          this.seFiles = {}
+          this.seFile = undefined
+        }
+        return 'continue'
+      case 'seopt': case 'bgmopt':
         return 'continue'
 
       case 'trans':
@@ -359,7 +383,7 @@ export class KAGInterpreter {
 
       default:
         if (this.macros.has(name)) {
-          this.callStack.push(this.cursor)
+          this.callStack.push({ cursor: this.cursor, labels: this.currentLabelMap })
           this.macroParamStack.push({ ...attrs })
           this.cursor = this.macros.get(name)!
           return 'continue'
@@ -495,7 +519,7 @@ export class KAGInterpreter {
     if (attrs.storage) {
       throw new Error(`CROSS_FILE_CALL:${attrs.storage}:${attrs.target ?? ''}`)
     }
-    this.callStack.push(this.cursor)
+    this.callStack.push({ cursor: this.cursor, labels: this.currentLabelMap })
     this.macroParamStack.push({})
     if (attrs.target) {
       const label = attrs.target.replace(/^\*/, '')
@@ -517,12 +541,16 @@ export class KAGInterpreter {
       this.jumpToLabel(label)
       return
     }
-    if (ret !== undefined) this.cursor = ret
+    if (ret !== undefined) {
+      this.cursor = ret.cursor
+      this.currentLabelMap = ret.labels
+    }
   }
 
-  returnCrossFile(offset: number, target: string) {
+  returnCrossFile(offset: number, labels: Map<string, number>, target: string) {
     this.callStack.pop()
     this.macroParamStack.pop()
+    this.currentLabelMap = labels
     this.cursor = offset
     if (target) {
       const label = target.replace(/^\*/, '')
@@ -739,6 +767,16 @@ export class KAGInterpreter {
       return value
     }
     if (value == null) return ''
+    if (Array.isArray(value)) {
+      return value.map(item => this.normalizeEvalValue(item))
+    }
+    if (typeof value === 'object') {
+      const normalized: Record<string, FlagValue> = {}
+      for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+        normalized[key] = this.normalizeEvalValue(nestedValue)
+      }
+      return normalized
+    }
     return String(value)
   }
 
@@ -771,6 +809,7 @@ export class KAGInterpreter {
       layers: this.getLayersArray(),
       bgmFile: this.bgmFile,
       seFile: this.seFile,
+      seFiles: { ...this.seFiles },
       voiceFile: this.voiceFile,
       voiceSpeakerId: this.voiceSpeakerId,
       choices: this.choiceBuffer.length > 0 ? [...this.choiceBuffer] : undefined,

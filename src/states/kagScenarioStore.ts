@@ -16,6 +16,7 @@ const INITIAL: KAGScenarioState = {
   currentSpeakerName: undefined,
   currentBgmFile: undefined,
   currentSeFile: undefined,
+  currentSeFiles: {},
   currentVoiceFile: undefined,
   currentVoiceSpeakerId: undefined,
   currentChoices: undefined,

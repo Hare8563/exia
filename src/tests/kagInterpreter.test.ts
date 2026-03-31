@@ -247,6 +247,22 @@ describe('KAGInterpreter', () => {
       expect(frame.text).toBe('loaded')
     })
 
+    it('preserves arrays and objects in evaluated flag values', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'eval', attrs: { exp: "f.items = ['剣', '盾']; f.meta = { count: 2, ok: true }" } },
+        { type: 'Tag', name: 'if', attrs: { exp: "f.items[1] == '盾' && f.meta.count == 2 && f.meta.ok == true" } },
+        { type: 'Text', content: 'complex-ok' },
+        { type: 'Tag', name: 'endif', attrs: {} },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.text).toBe('complex-ok')
+      const flags = interp.getFlags() as Record<string, unknown>
+      expect(Array.isArray(flags.items)).toBe(true)
+      expect((flags.meta as { count: number }).count).toBe(2)
+    })
+
     it('nested [if] blocks: outer false skips entire nested structure', async () => {
       const tokens: KagToken[] = [
         { type: 'Tag', name: 'if', attrs: { exp: 'f.outer == true' } },  // false → skip
@@ -293,6 +309,23 @@ describe('KAGInterpreter', () => {
       expect(frame1.text).toBe('sub_text')
       const frame2 = await interp.advance() // returns, continues
       expect(frame2.text).toBe('after')
+    })
+
+    it('keeps previously loaded macros available after cross-file jumps', async () => {
+      const interp = new KAGInterpreter([
+        { type: 'Tag', name: 'macro', attrs: { name: 'COMMON_HELLO' } },
+        { type: 'Text', content: 'macro works' },
+        { type: 'Tag', name: 'endmacro', attrs: {} },
+      ])
+
+      const appended = interp.appendTokens([
+        { type: 'Tag', name: 'COMMON_HELLO', attrs: {} },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ])
+
+      interp.jumpCrossFile(appended.offset, appended.labels, '')
+      const frame = await interp.advance()
+      expect(frame.text).toBe('macro works')
     })
 
     it('[return target=*label] jumps to the requested in-file destination', async () => {
@@ -543,6 +576,18 @@ describe('KAGInterpreter', () => {
       expect(frame.uiState.clickableMap.page).toBe('fore')
       expect(frame.uiState.clickableMap.image).toBe('dialog_save_yes_no_p')
       expect(frame.uiState.clickableMap.action).toBe('dialog_title_yes_no_main.ma')
+    })
+
+    it('tracks SE playback per buffer instead of overwriting a single channel', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'playse', attrs: { storage: 'rain.wav', buf: '0' } },
+        { type: 'Tag', name: 'playse', attrs: { storage: 'gun.wav', buf: '1' } },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.seFiles?.[0]?.file).toBe('rain.wav')
+      expect(frame.seFiles?.[1]?.file).toBe('gun.wav')
     })
 
     it('registers button tags and hides them through message-layer layopt', async () => {

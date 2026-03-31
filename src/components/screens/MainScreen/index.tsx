@@ -7,6 +7,7 @@ import { Navigation } from '@/components/modules/Navigation'
 import { Log } from '@/components/modules/Log'
 import { Voice } from '@/components/modules/Voice'
 import { Bgm } from '@/components/modules/Bgm'
+import { Se } from '@/components/modules/Se'
 import { ClickableMap } from '@/components/modules/ClickableMap'
 import { useKAGScenarioManager } from '@/components/modules/Message/hooks/useKAGScenarioManager'
 import { useScreenStore } from '@/states/screenStore'
@@ -74,6 +75,7 @@ export const MainScreen: React.FC = () => {
     <div className="relative w-full h-full cursor-pointer" onClick={handleScreenClick} onContextMenu={handleContextMenu}>
       <Voice />
       <Bgm />
+      <Se />
       <ThreeCanvas />
       <ClickableMap />
       <Message />
