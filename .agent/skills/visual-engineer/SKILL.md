@@ -109,39 +109,65 @@ POST http://127.0.0.1:8188/prompt
 
 ## Phase 4: ファイル命名規則
 
-生成した画像に以下の規則でファイル名を付与する。
+### イベントCG命名パターン（grand002準拠）
 
-### 命名パターン
-
-```
-cg_[キャラ略称]_[シーン略称]_[差分識別子].webp
-```
-
-### 差分識別子の規則
-
-| 識別子 | 意味 |
-|--------|------|
-| `_face` | 顔（通常） |
-| `_face_red` | 赤面 |
-| `_mouth` | 口元接写 |
-| `_oppai` | 胸部接写 |
-| `_genital` | 結合部接写 |
-| `_zoom` | 超接写（毛穴レベル） |
-| `_shame` | 羞恥表情 |
-| `_pleasure` | 快感表情 |
-| `_ecstasy` | 恍惚表情 |
-| `_collapsed` | 崩壊表情 |
-| `_spasm` | 痙攣 |
-| `_whiteout` | 白フェード（絶頂） |
-
-### 例
+イベントCGはキャラ略称 + シーン番号 + アルファベット差分の体系を使う。
 
 ```
-cg_laura_ch01_face_shame.webp
-cg_laura_ch01_face_ecstasy.webp
-cg_laura_ch01_genital_zoom.webp
-cg_laura_ch01_whiteout.webp
+[キャラ略称]_[NN]        ← ベースCG（最初の1枚。キャラ名+2桁連番）
+[キャラ略称]_[NN]a       ← 差分1（脱衣・表情変化など）
+[キャラ略称]_[NN]b       ← 差分2
+[キャラ略称]_[NN]c       ← 差分3
+...（アルファベット順に続く）
 ```
+
+**例（kazari の第1CGセット）：**
+```
+kazari_01        ← ベース（衣服あり・羞恥）
+kazari_01a       ← 差分（胸露出）
+kazari_01b       ← 差分（快感表情）
+kazari_01c       ← 差分（恍惚）
+kazari_01d       ← 差分（動画プレースホルダ用途：INVISIBLE_CGで参照）
+kazari_01e       ← 差分（絶頂・液体）
+```
+
+**キャラ略称の規則：**
+
+| キャラクター | 略称 |
+|------------|------|
+| 風璃 | `kazari` |
+| 月乃 | `tsukino` |
+| 唄葉 | `utaha` |
+| その他（複数キャラ登場） | `other` |
+
+**背景ファイルは別系統：**
+```
+bg_[NN].webp     ← 通常背景（bg_001〜）
+```
+
+### 差分の設計指針
+
+差分は以下の状態変化を基準に切る。スクリプターが `FAID_CH_CG` で都度切り替えるため、**差分間の連続性（前差分との視覚的つながり）**が重要：
+
+| 差分タイミング | 例 |
+|--------------|-----|
+| 脱衣の段階ごと（ブラ着用→外す→全裸） | `_01` → `_01a` → `_01b` |
+| 感情の段階（羞恥→快感→恍惚） | 同一構図で表情のみ変化 |
+| 行為の進行（挿入前→挿入→絶頂） | 構図は変えてよい |
+| 射精・液体（体液追加） | 絶頂差分の直後 |
+
+### アニメーション対応差分（INVISIBLE_CG 用）
+
+動画アニメーション（`PLAY_MOVIE_LOOP`）が再生されている間は、静止画CGは**画面に表示しない**。その代わりにスクリプターが `INVISIBLE_CG` を呼び出して「CGを見た」フラグだけを立てる。
+
+このため、動画との切り替えポイントとなる差分は必ず用意する：
+
+```
+[キャラ略称]_[NN]d  ← 動画ループ中に対応する静止画差分（INVISIBLE_CGで参照）
+[キャラ略称]_[NN]e  ← 動画終了後の静止画（FAID_CH_CGで表示再開）
+```
+
+マニフェストには `is_invisible: true` を付けて区別する。
 
 ---
 
@@ -155,26 +181,41 @@ cg_laura_ch01_whiteout.webp
   "cgs": [
     {
       "cg_id": "CG_001",
-      "description": "字コンテの識別名",
+      "scene_log_label": "scene_log_kazari01",
+      "seen_flag": "sf.seen_kazari_no01",
+      "description": "風璃・第1CGセット",
       "files": [
         {
-          "imageFile": "cg_laura_ch01_face_shame.webp",
-          "isFullScreen": false,
-          "variant": "shame",
-          "scene_note": "第2幕・接触開始時の羞恥表情"
+          "imageFile": "kazari_01.webp",
+          "isFullScreen": true,
+          "variant": "base",
+          "scene_note": "ベース（衣服あり・羞恥）"
         },
         {
-          "imageFile": "cg_laura_ch01_face_ecstasy.webp",
-          "isFullScreen": false,
-          "variant": "ecstasy",
-          "scene_note": "第3幕・恍惚状態"
+          "imageFile": "kazari_01a.webp",
+          "isFullScreen": true,
+          "variant": "diff_a",
+          "scene_note": "差分（胸露出）"
+        },
+        {
+          "imageFile": "kazari_01d.webp",
+          "isFullScreen": true,
+          "variant": "diff_d",
+          "is_invisible": true,
+          "scene_note": "動画ループ中の静止画フラグ用（INVISIBLE_CG）"
+        },
+        {
+          "imageFile": "kazari_01e.webp",
+          "isFullScreen": true,
+          "variant": "diff_e",
+          "scene_note": "動画終了後の絶頂差分"
         }
       ]
     }
   ],
   "backgrounds": [
     {
-      "backgroundFile": "bg_room_evening.webp",
+      "backgroundFile": "bg_055.webp",
       "scene_note": "シーン全体の背景"
     }
   ]

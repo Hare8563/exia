@@ -88,7 +88,7 @@ description: シナリオドラフト・CGマニフェスト・オーディオ�
 |------------|---------|
 | `〈BG:image_name〉` | `[FAID_IN_CG back_cg="image_name.webp" time=1500]` |
 | `〈BG_CHANGE:image_name〉` | `[FAID_CH_CG back_cg="image_name.webp" time=500]` |
-| `〈CG:image_name〉` | `[FAID_IN_CG back_cg="image_name.webp" time=1000]` |
+| `〈CG:image_name〉` | イベントCGフルパターンを展開（後述） |
 | `〈VOICE:V001〉` | `[VOICE voice="V001.wav" voice_count=N]` |
 | `〈BGM:filename〉` | `[PLAY_BGM bgm="filename.mp3" bgm_flag=0]` |
 | `〈SE:filename〉` | `[PLAY_SE se="filename.wav" se_flag=0]` |
@@ -197,12 +197,88 @@ S_000.ks のように、各スクリプトは `*entry` ラベルで初期化し�
 | `[ITEM_IN item_name=xxx]` | カットイン（layer=3）表示 | `item_name`=ファイル名 |
 | `[ITEM_OUT]` | カットイン非表示 | — |
 
-フルスクリーンCGは `[FAID_IN_CG]` で表示し、非表示は直接タグで：
+### イベントCGのフルパターン
+
+イベントCGはベースCG開始→差分切り替え→終了の3段階で構成する。
+
+#### ① CGシーン開始（暗転 → CG表示）
 
 ```ks
-[FAID_IN_CG back_cg="cg_01.webp" time=1000]
-CGシーンのテキスト[l]
-[image layer=4 visible=false]
+;■暗転
+[cm][MESSAGE_OFF]
+[ALL_OFF back_cg="black" out_number=0 time=1500][STOP_BGM bgm_flag=1]
+
+;■イベントCG：xxx_01
+*scene_log_xxx01
+[eval exp="sf.seen_xxx_no01 = 1"]
+[FAID_IN_CG back_cg="xxx_01" time=1500]
+[PLAY_BGM bgm="bgm_009" bgm_flag=1]
+[cm][MESSAGE_ON]
+```
+
+- `*scene_log_xxx01` ラベル：CGシーン回想ログの再生開始点。必ず付ける
+- `[eval exp="sf.seen_xxx_no01 = 1"]`：そのCGを初回閲覧したことを記録するフラグ
+- ラベル名・フラグ名はcg_manifest.jsonの `scene_log_label` / `seen_flag` フィールドを参照する
+
+#### ② 差分切り替え（静止画のみ）
+
+```ks
+;■イベントCG：xxx_01a
+[FAID_CH_CG back_cg="xxx_01a" time=500]
+[cm][MESSAGE_ON]
+```
+
+- 差分切り替えは必ず `[FAID_CH_CG time=500]`（クロスフェード、500ms固定）
+- 新規CG開始の `[FAID_IN_CG time=1500]` とは使い分けること
+
+#### ③ 差分切り替え（アニメーション対応）
+
+動画アニメが存在するシーンでは、`sf.config_anime_mode` で静止画/動画を切り替える：
+
+```ks
+;■イベントCG：xxx_01e（動画ループ開始 or アニメなし差分）
+[eval exp="sf.movie_xxx_no01 = 1"]
+[if exp="sf.config_anime_mode == 0"]
+    [PLAY_MOVIE_LOOP movie_name1="xxx_01a.mpg" movie_name2="xxx_01a.mpg" layer_name="xxx_01d"]
+    [eval exp="f.anime_name1 = 'xxx_01a.mpg'"]
+    [eval exp="f.anime_name2 = 'xxx_01b.mpg'"]
+    [eval exp="f.anime_name3 = 'xxx_01c.mpg'"]
+    [eval exp="f.anime_name4 = 'xxx_01d.mpg'"]
+    [eval exp="f.anime_play = 0"]
+    [eval exp="f.slot_flag = 0"]
+    [eval exp="f.zoom_flag = 0"]
+    [eval exp="f.camera_flag = 0"]
+    [INVISIBLE_CG back_cg="xxx_01e"]
+[else]
+    [FAID_CH_CG back_cg="xxx_01e" time=500]
+[endif]
+[cm][MESSAGE_ON]
+```
+
+動画なしで単純に「動画モードONなら不可視切り替え」の場合：
+
+```ks
+;■イベントCG：xxx_01e
+[if exp="sf.config_anime_mode == 0"]
+    [INVISIBLE_CG back_cg="xxx_01e"]
+[elsif exp="sf.config_anime_mode == 1"]
+    [FAID_CH_CG back_cg="xxx_01e" time=500]
+[endif]
+[cm][MESSAGE_ON]
+```
+
+- `[INVISIBLE_CG back_cg="xxx"]`：画像は表示せず `sf["xxx_01e"] = 1` フラグのみ立てる（動画が既に表示中のため）
+- cg_manifest.jsonで `is_invisible: true` が付いている差分ファイルにはこのパターンを使う
+
+#### ④ CGシーン終了（暗転 → 通常背景に戻る）
+
+```ks
+;■暗転（CGシーン終了）
+[cm][MESSAGE_OFF]
+[ALL_OFF back_cg="black" out_number=0 time=1500][STOP_BGM bgm_flag=1]
+[FAID_IN_CG back_cg="bg_xxx" time=1500]
+[PLAY_BGM bgm="bgm_xxx" bgm_flag=1]
+[cm][MESSAGE_ON]
 ```
 
 ### キャラクター制御マクロ
@@ -296,6 +372,10 @@ Bを選んだ場合のテキスト[l]
 ### チェックリスト
 
 - [ ] 全テキストページの末尾に `[SYSTEM_MENU_ON]` が付いているか（`[l]`/`[p]` は使わない）
+- [ ] イベントCG開始前に `[ALL_OFF][STOP_BGM]` → `*scene_log_XXX` ラベル → `[eval sf.seen_xxx=1]` → `[FAID_IN_CG]` の順になっているか
+- [ ] CG差分切り替えは `[FAID_CH_CG time=500]`（500ms固定）を使っているか（`FAID_IN_CG` は新規CG開始のみ）
+- [ ] `is_invisible: true` の差分に `[INVISIBLE_CG]` を使い、アニメモード分岐を書いているか
+- [ ] `[image layer=4 visible=false]` など低レベルタグでCGを消していないか（`ALL_OFF` を使うこと）
 - [ ] `[glink]` の `target` に対応する `*label` が存在するか
 - [ ] `[jump storage=xxx target=*label]` の `storage=` 表記が正しいか（`file=` は使わない）
 - [ ] `[call storage=xxx target=*label]` の表記が正しいか
@@ -343,6 +423,9 @@ Bを選んだ場合のテキスト[l]
 - [ ] アイテム提示のタイミング・演出は効果的か
 - [ ] 暗転（`ALL_OFF`）の前にセリフがきちんと完結しているか
 - [ ] `[SYSTEM_MENU_ON]` の付け忘れがないか
+- [ ] イベントCGに `*scene_log_XXX` ラベルと `sf.seen_xxx_no01` フラグが付いているか
+- [ ] CG差分のタイミングはシーンの感情変化に合っているか（差分が多すぎ/少なすぎないか）
+- [ ] アニメーション対応差分（`is_invisible`）に正しく `INVISIBLE_CG` / `FAID_CH_CG` の分岐が書かれているか
 
 **テキスト・フローチェック**
 - [ ] ナレーションと台詞の使い分けが適切か
