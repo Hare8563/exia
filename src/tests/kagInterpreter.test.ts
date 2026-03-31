@@ -493,6 +493,49 @@ describe('KAGInterpreter', () => {
       expect(frame3.text).toBe('after')
       expect(frame3.isWaitingTransition).toBe(false)
     })
+
+    it('base transitions include foreground layers by default via children=true', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'image', attrs: { storage: 'old.webp', layer: '0', page: 'fore', visible: 'true' } },
+        { type: 'Tag', name: 'backlay', attrs: {} },
+        { type: 'Tag', name: 'image', attrs: { storage: 'new.webp', layer: '0', page: 'back', visible: 'true' } },
+        { type: 'Tag', name: 'trans', attrs: { layer: 'base', method: 'crossfade', time: '800' } },
+        { type: 'Tag', name: 'wt', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.transition?.layers).toContain('base')
+      expect(frame.transition?.layers).toContain(0)
+    })
+
+    it('respects children=false on base transitions', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'image', attrs: { storage: 'old.webp', layer: '0', page: 'fore', visible: 'true' } },
+        { type: 'Tag', name: 'backlay', attrs: {} },
+        { type: 'Tag', name: 'image', attrs: { storage: 'new.webp', layer: '0', page: 'back', visible: 'true' } },
+        { type: 'Tag', name: 'trans', attrs: { layer: 'base', children: 'false', method: 'crossfade', time: '800' } },
+        { type: 'Tag', name: 'wt', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      expect(frame.transition?.layers).toEqual(['base'])
+    })
+
+    it('stoptrans commits the pending transition immediately', async () => {
+      const tokens: KagToken[] = [
+        { type: 'Tag', name: 'image', attrs: { storage: 'before.webp', layer: 'base', page: 'fore', visible: 'true' } },
+        { type: 'Tag', name: 'backlay', attrs: {} },
+        { type: 'Tag', name: 'image', attrs: { storage: 'after.webp', layer: 'base', page: 'back', visible: 'true' } },
+        { type: 'Tag', name: 'trans', attrs: { method: 'crossfade', time: '800' } },
+        { type: 'Tag', name: 'stoptrans', attrs: {} },
+        { type: 'Tag', name: 'l', attrs: {} },
+      ]
+      const interp = new KAGInterpreter(tokens)
+      const frame = await interp.advance()
+      const bg = frame.layers.find(layer => layer.id === 'base')
+      expect(bg?.file).toBe('after.webp')
+      expect(frame.isWaitingTransition).toBe(false)
+    })
   })
 
   describe('additional flow and timer tests', () => {

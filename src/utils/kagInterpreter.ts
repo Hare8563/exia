@@ -51,7 +51,10 @@ export class KAGInterpreter {
   private currentLabelMap = new Map<string, number>()
 
   // Running transitions: [trans] adds immediately, [wt] waits for all to complete
-  private runningTransitions: Array<{ method: string; time: number; layer?: 'base' | number }> = []
+  private runningTransitions: Array<{ method: string; time: number; layer?: 'base' | number; includeChildren: boolean }> = []
+  private activeTransition:
+    | { method: string; time: number; layers: ('base' | number)[]; foreLayers: KAGLayer[]; backLayers: KAGLayer[] }
+    | undefined
   private pendingWaitTime: number | undefined
   private pendingWaitCanSkip = true
   private waitingTransition = false
@@ -122,26 +125,24 @@ export class KAGInterpreter {
 
   // Called when foreground-layer timer completes (or skipped by user click)
   onForegroundTransitionComplete() {
-    for (const t of this.runningTransitions) {
-      const key = t.layer
-      if (key !== undefined && key !== 'base') {
+    for (const key of this.activeTransition?.layers ?? []) {
+      if (key !== 'base') {
         const back = this.backLayers.get(key)
         if (back) this.foreLayers.set(key, { ...back })
       }
     }
-    this.runningTransitions = []
+    this.clearTransitionTracking()
   }
 
   // Called when background (base) transition completes (click or renderer callback)
   onTransitionComplete() {
     this.waitingTransition = false
     this.waitingTransitionCanSkip = true
-    for (const t of this.runningTransitions) {
-      const key = t.layer ?? 'base'
+    for (const key of this.activeTransition?.layers ?? []) {
       const back = this.backLayers.get(key)
       if (back) this.foreLayers.set(key, { ...back })
     }
-    this.runningTransitions = []
+    this.clearTransitionTracking()
   }
 
   getLayersArray(): KAGLayer[] { return Array.from(this.foreLayers.values()) }
@@ -210,16 +211,24 @@ export class KAGInterpreter {
 
       case 'wt': {
         if (this.runningTransitions.length === 0) return 'continue'
-        const hasBase = this.runningTransitions.some(t => t.layer === undefined || t.layer === 'base')
+        const transitionLayers = this.runningTransitions.flatMap(t => this.expandTransitionLayers(t))
+        const uniqueLayers = Array.from(new Set(transitionLayers))
+        const hasBase = uniqueLayers.includes('base')
         this.waitingTransitionCanSkip = this.parseBooleanAttr(attrs.canskip, true)
+        this.activeTransition = {
+          method: this.runningTransitions[0]?.method ?? 'universal',
+          time: Math.max(...this.runningTransitions.map(t => t.time)),
+          layers: uniqueLayers,
+          foreLayers: Array.from(this.foreLayers.values()).map(l => ({ ...l })),
+          backLayers: Array.from(this.backLayers.values()).map(l => ({ ...l })),
+        }
         if (hasBase) {
           // Base layer: renderer drives completion via onTransitionComplete callback
           this.waitingTransition = true
           return 'pause'
         }
         // Foreground layers only: auto-complete via timer
-        const maxTime = Math.max(...this.runningTransitions.map(t => t.time))
-        this.pendingWaitTime = maxTime
+        this.pendingWaitTime = this.activeTransition.time
         this.pendingWaitCanSkip = this.waitingTransitionCanSkip
         return 'pause'
       }
@@ -338,7 +347,12 @@ export class KAGInterpreter {
           method: attrs.method ?? 'universal',
           time: parseInt(attrs.time ?? '800'),
           layer: attrs.layer === 'base' ? 'base' : attrs.layer !== undefined ? parseInt(attrs.layer) : undefined,
+          includeChildren: attrs.children !== 'false',
         })
+        return 'continue'
+
+      case 'stoptrans':
+        this.onTransitionComplete()
         return 'continue'
 
       case 'wait':
@@ -513,6 +527,25 @@ export class KAGInterpreter {
     } else {
       this.cursor = 0
     }
+  }
+
+  private expandTransitionLayers(transition: { layer?: 'base' | number; includeChildren: boolean }): ('base' | number)[] {
+    const layer = transition.layer ?? 'base'
+    if (layer !== 'base') return [layer]
+    if (!transition.includeChildren) return ['base']
+
+    const layers: ('base' | number)[] = ['base']
+    for (const key of this.foreLayers.keys()) {
+      if (key === 'base') continue
+      layers.push(key)
+    }
+    return layers
+  }
+
+  private clearTransitionTracking() {
+    this.runningTransitions = []
+    this.activeTransition = undefined
+    this.pendingWaitTime = undefined
   }
 
   private handleCall(attrs: Record<string, string>) {
@@ -795,13 +828,7 @@ export class KAGInterpreter {
     this.pendingWaitCanSkip = true
 
     // Snapshot running transitions for the renderer
-    const transition = this.runningTransitions.length > 0 ? {
-      method: this.runningTransitions[0].method,
-      time: Math.max(...this.runningTransitions.map(t => t.time)),
-      layers: this.runningTransitions.map(t => t.layer ?? 'base' as 'base' | number),
-      foreLayers: Array.from(this.foreLayers.values()).map(l => ({ ...l })),
-      backLayers: Array.from(this.backLayers.values()).map(l => ({ ...l })),
-    } : undefined
+    const transition = this.activeTransition
 
     const frame: KAGDisplayFrame = {
       text: this.textBuffer,
