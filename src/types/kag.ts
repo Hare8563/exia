@@ -33,6 +33,8 @@ export type KAGDisplayFrame = {
     method: string                  // 'crossfade' | 'scroll' | 'dissolve'
     time: number                    // ms
     layer?: 'base' | number         // undefined = background (base)
+    foreLayers: KAGLayer[]          // fore buffer snapshot at transition start
+    backLayers: KAGLayer[]          // back buffer snapshot at transition start (target)
   }
   isWaitingTransition: boolean
   isWaitingTimer: boolean

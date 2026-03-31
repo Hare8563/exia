@@ -9,6 +9,7 @@ export const ThreeCanvas: React.FC = () => {
       <Canvas
         camera={{ position: [0, 0, 5], fov: 45 }}
         gl={{ antialias: true }}
+        flat
       >
         <Suspense fallback={null}>
           <ambientLight intensity={0.5} />

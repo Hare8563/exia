@@ -64,6 +64,12 @@ export function useKAGScenarioManager() {
         const flags = useKAGScenarioStore.getState().flags
         interp.loadTokens(tokens, label, flags)
         await doAdvanceRef.current()
+      } else if (msg.startsWith('Error: CROSS_FILE_CALL:')) {
+        const [file, target] = msg.replace('Error: CROSS_FILE_CALL:', '').split(':')
+        const tokens = await loadKAGTokens(`scenarios/${file.replace('.ks', '')}`)
+        const offset = interp.appendTokens(tokens)
+        interp.callCrossFile(offset, target ?? '')
+        await doAdvanceRef.current()
       } else {
         console.error('KAG advance error:', err)
       }
@@ -73,8 +79,14 @@ export function useKAGScenarioManager() {
 
   const goToNextLine = useCallback(async () => {
     if (isScenarioEnd) return
+    const interp = interpreterRef.current
+    if (interp?.isWaitingTransition()) {
+      // [wt canskip=true]: user clicked during transition — skip it immediately
+      interp.onTransitionComplete()
+      setFrame({ isWaitingTransition: false, currentTransition: undefined })
+    }
     await doAdvance()
-  }, [isScenarioEnd, doAdvance])
+  }, [isScenarioEnd, doAdvance, setFrame])
 
   const handleChoiceSelect = useCallback(async (target: string) => {
     interpreterRef.current?.selectChoice(target)
@@ -83,11 +95,9 @@ export function useKAGScenarioManager() {
   }, [setFrame, doAdvance])
 
   const onTransitionComplete = useCallback(() => {
-    // Calling onTransitionComplete() resolves the Promise inside advance().
-    // The original advance() call resumes and returns the next frame on its own —
-    // do NOT call doAdvance() here, that would create a second concurrent cursor walk.
     interpreterRef.current?.onTransitionComplete()
     setFrame({ isWaitingTransition: false, currentTransition: undefined })
+    void doAdvanceRef.current()
   }, [setFrame])
 
   const skipToNextChoice = useCallback(async () => {
@@ -118,6 +128,7 @@ export function useKAGScenarioManager() {
     useKAGScenarioStore.getState().setTransitionCompleteCallback(() => {
       interpreterRef.current?.onTransitionComplete()
       useKAGScenarioStore.getState().setFrame({ isWaitingTransition: false, currentTransition: undefined })
+      void doAdvanceRef.current()
     })
     void doAdvance()
   }, [doAdvance])

@@ -3,21 +3,17 @@ import { useKAGScenarioManager } from './hooks/useKAGScenarioManager'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import { useNavigationStore } from '@/states/navigationStore'
 import { useSkipActionStore } from '@/states/skipActionStore'
-import { useScreenStore } from '@/states/screenStore'
 import { MessageTypewriter } from './MessageTypewriter'
 import { Choice } from '../Choice'
 import { DialogueLayout, NarrationLayout } from './layouts'
-import { SCREEN } from '@/constants'
 import type { ScenarioChoice } from '@/types'
 
 export const Message: React.FC = () => {
-  const { goToNextLine, handleChoiceSelect, skipToNextChoice, isScenarioEnd } =
-    useKAGScenarioManager()
+  const { handleChoiceSelect, skipToNextChoice } = useKAGScenarioManager()
   const currentText = useKAGScenarioStore(s => s.currentText)
   const speakerName = useKAGScenarioStore(s => s.currentSpeakerName)
   const choices = useKAGScenarioStore(s => s.currentChoices)
   const { navigation } = useNavigationStore()
-  const { setScreen } = useScreenStore()
 
   const [isShowArrowIcon, setIsShowArrowIcon] = useState(false)
   const [isReading, setIsReading] = useState(false)
@@ -28,22 +24,16 @@ export const Message: React.FC = () => {
     useSkipActionStore.getState().setSkipAction({ skipToNextChoice })
   }, [skipToNextChoice])
 
-  const handleNext = useCallback(async () => {
-    if (isScenarioEnd) {
-      setScreen({ screen: SCREEN.ENDING_SCREEN })
-      return
+  // Typewriter skip: when reading and user clicks, snap to full text
+  const handleTypewriterSkip = useCallback(() => {
+    if (isReading && typewriterInstance) {
+      typewriterInstance.stop().typeString(currentText).start()
+      setIsReading(false)
+      setIsShowArrowIcon(true)
+      return true  // consumed the click
     }
-    if (choices) return  // blocked until choice selected
-    if (isReading) {
-      if (typewriterInstance) {
-        typewriterInstance.stop().typeString(currentText).start()
-        setIsReading(false)
-        setIsShowArrowIcon(true)
-      }
-      return
-    }
-    await goToNextLine()
-  }, [isScenarioEnd, choices, isReading, typewriterInstance, currentText, goToNextLine, setScreen])
+    return false
+  }, [isReading, typewriterInstance, currentText])
 
   if (!currentText && !choices) return null
 
@@ -56,28 +46,31 @@ export const Message: React.FC = () => {
   }))
 
   return (
-    <div className="absolute bottom-0 left-0 z-40 w-full h-full pointer-events-none">
-      <div className="pointer-events-auto cursor-pointer" onClick={handleNext}>
-        <Layout
-          characterName={speakerName}
-          showArrowIcon={isShowArrowIcon}
-          isAutoPlay={navigation.isAutoPlay}
-        >
-          <MessageTypewriter
-            key={currentText}
-            navigation={navigation}
-            text={currentText}
-            setIsShowArrowIcon={setIsShowArrowIcon}
-            setIsReading={setIsReading}
-            setTypewriterInstance={setTypewriterInstance}
-          />
-        </Layout>
-      </div>
-      {mappedChoices && (
-        <Choice
-          choices={mappedChoices}
-          onSelect={(choice: ScenarioChoice) => handleChoiceSelect(choice.jumpTo)}
+    <div
+      className="absolute bottom-0 left-0 z-40 w-full h-full pointer-events-none"
+      onClick={e => { if (handleTypewriterSkip()) e.stopPropagation() }}
+    >
+      <Layout
+        characterName={speakerName}
+        showArrowIcon={isShowArrowIcon}
+        isAutoPlay={navigation.isAutoPlay}
+      >
+        <MessageTypewriter
+          key={currentText}
+          navigation={navigation}
+          text={currentText}
+          setIsShowArrowIcon={setIsShowArrowIcon}
+          setIsReading={setIsReading}
+          setTypewriterInstance={setTypewriterInstance}
         />
+      </Layout>
+      {mappedChoices && (
+        <div className="pointer-events-auto">
+          <Choice
+            choices={mappedChoices}
+            onSelect={(choice: ScenarioChoice) => handleChoiceSelect(choice.jumpTo)}
+          />
+        </div>
       )}
     </div>
   )

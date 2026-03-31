@@ -109,7 +109,7 @@ fn parse_attrs(s: &str) -> Result<HashMap<String, String>, String> {
     while !rest.is_empty() {
         if let Some(eq) = rest.find('=') {
             let key = rest[..eq].trim().to_string();
-            rest = &rest[eq+1..];
+            rest = rest[eq+1..].trim_start();
             let (value, remaining) = if rest.starts_with('"') {
                 let end = rest[1..].find('"').ok_or("Unclosed quote")?;
                 let val = rest[1..end+1].to_string();

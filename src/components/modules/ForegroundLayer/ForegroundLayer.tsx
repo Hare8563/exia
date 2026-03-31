@@ -19,41 +19,47 @@ function LayerSprite({ layer }: { layer: KAGLayer }) {
   )
 
   const targetOpacity = layer.visible ? layer.opacity / 255 : 0
-  const targetX = (layer.x / 1920) * viewport.width   // normalize from px to viewport
-  const targetY = -(layer.y / 1080) * viewport.height
   const z = 0.05 + (typeof layer.id === 'number' ? layer.id * 0.01 : 0)
 
   useFrame((_, delta) => {
     if (!meshRef.current || !matRef.current) return
+
+    // Opacity only: lerp for crossfade effect (as specified by [trans method=crossfade])
     const alpha = 1 - Math.exp(-delta * ANIM_SPEED)
     matRef.current.opacity = THREE.MathUtils.lerp(matRef.current.opacity, targetOpacity, alpha)
-    meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, alpha)
-    meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, targetY, alpha)
-    meshRef.current.position.z = z
+
     const img = texture.image as HTMLImageElement | undefined
     const imgAspect = img?.width && img?.height ? img.width / img.height : 1
     const isCoverLayer = typeof layer.id === 'number' && layer.id >= 3
-    let targetScaleX: number, targetScaleY: number
+
+    let scaleX: number, scaleY: number
     if (isCoverLayer) {
-      // Cover: fill entire viewport, crop if needed
       const viewAspect = viewport.width / viewport.height
       if (imgAspect >= viewAspect) {
-        targetScaleY = viewport.height * layer.scale
-        targetScaleX = targetScaleY * imgAspect
+        scaleY = viewport.height * layer.scale
+        scaleX = scaleY * imgAspect
       } else {
-        targetScaleX = viewport.width * layer.scale
-        targetScaleY = targetScaleX / imgAspect
+        scaleX = viewport.width * layer.scale
+        scaleY = scaleX / imgAspect
       }
     } else {
-      targetScaleY = layer.scale * (viewport.height * 0.8)
-      targetScaleX = targetScaleY * imgAspect
+      // Foot-anchored: sprite fills from top= down to screen bottom
+      scaleY = layer.scale * (1.0 - layer.y / 1080) * viewport.height
+      scaleX = scaleY * imgAspect
     }
-    meshRef.current.scale.y = THREE.MathUtils.lerp(meshRef.current.scale.y, targetScaleY, alpha)
-    meshRef.current.scale.x = THREE.MathUtils.lerp(meshRef.current.scale.x, targetScaleX, alpha)
+
+    // Snap scale and position immediately (no lerp) — only opacity animates
+    meshRef.current.scale.set(scaleX, scaleY, 1)
+
+    // X: left edge in KAG px on 1920-wide canvas
+    // Y: bottom-anchored — sprite bottom at screen bottom edge
+    const posX = (layer.x / 1920) * viewport.width - viewport.width / 2 + scaleX / 2
+    const posY = -viewport.height / 2 + scaleY / 2
+    meshRef.current.position.set(posX, posY, z)
   })
 
   return (
-    <mesh ref={meshRef} position={[targetX, targetY, z]}>
+    <mesh ref={meshRef}>
       <planeGeometry args={[1, 1]} />
       <meshBasicMaterial
         ref={matRef}

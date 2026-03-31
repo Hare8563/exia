@@ -1,5 +1,5 @@
 // src/components/modules/Background/Background3D.tsx
-import { useRef, useEffect } from 'react'
+import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
@@ -7,12 +7,14 @@ import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 
 const FADE_SPEED = 3   // crossfade animation speed
 
-function BackgroundMesh({ file, opacity, onFadeComplete }: {
+function BackgroundMesh({ file, startOpacity, targetOpacity, onFadeComplete }: {
   file: string
-  opacity: number
+  startOpacity: number
+  targetOpacity: number
   onFadeComplete?: () => void
 }) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null)
+  const firedRef = useRef(false)
   const { viewport } = useThree()
   const texture = useTexture(`/images/bgimage/${file}`)
 
@@ -28,18 +30,20 @@ function BackgroundMesh({ file, opacity, onFadeComplete }: {
   useFrame((_, delta) => {
     if (!matRef.current) return
     const alpha = 1 - Math.exp(-delta * FADE_SPEED)
-    const newOpacity = THREE.MathUtils.lerp(matRef.current.opacity, opacity, alpha)
+    const newOpacity = THREE.MathUtils.lerp(matRef.current.opacity, targetOpacity, alpha)
     matRef.current.opacity = newOpacity
-    if (Math.abs(newOpacity - opacity) < 0.01) {
-      matRef.current.opacity = opacity
-      if (opacity === 0 || opacity === 1) onFadeComplete?.()
+    if (!firedRef.current && Math.abs(newOpacity - targetOpacity) < 0.01) {
+      matRef.current.opacity = targetOpacity
+      firedRef.current = true
+      onFadeComplete?.()
     }
   })
 
   return (
     <mesh position={[0, 0, 0]}>
       <planeGeometry args={[sx, sy]} />
-      <meshBasicMaterial ref={matRef} map={texture} transparent opacity={opacity} />
+      {/* startOpacity sets the THREE material's initial opacity before useFrame takes over */}
+      <meshBasicMaterial ref={matRef} map={texture} transparent opacity={startOpacity} />
     </mesh>
   )
 }
@@ -49,38 +53,48 @@ export function Background3D() {
   const transition = useKAGScenarioStore(s => s.currentTransition)
   const isWaiting = useKAGScenarioStore(s => s.isWaitingTransition)
 
-  const prevFileRef = useRef<string | undefined>(undefined)
-  const currentFile = layer?.file
+  const transitionKeyRef = useRef(0)
+  const prevIsWaitingRef = useRef(false)
 
-  // When a new file arrives with a transition, show crossfade
-  const isTransitioning = isWaiting && transition?.method === 'crossfade' &&
-    prevFileRef.current !== undefined && prevFileRef.current !== currentFile
-
-  useEffect(() => {
-    if (currentFile && !isWaiting) {
-      prevFileRef.current = currentFile
-    }
-  }, [currentFile, isWaiting])
+  // Increment key each time a new wait starts → forces BackgroundMesh to remount → resets firedRef
+  if (isWaiting && !prevIsWaitingRef.current) {
+    transitionKeyRef.current++
+  }
+  prevIsWaitingRef.current = isWaiting
 
   // Read transition callback from store (set by useKAGScenarioManager)
   const handleFadeComplete = () => {
     useKAGScenarioStore.getState().transitionCompleteCallback?.()
   }
 
-  if (!currentFile) return null
+  // Use double-buffer snapshots from transition object for crossfade
+  const isCrossfade = isWaiting && transition?.method === 'crossfade'
+  const outgoingFile = isCrossfade
+    ? transition!.foreLayers.find(l => l.id === 'base')?.file
+    : undefined
+  const incomingFile = isCrossfade
+    ? transition!.backLayers.find(l => l.id === 'base')?.file
+    : layer?.file
+
+  if (!incomingFile && !outgoingFile) return null
 
   return (
     <>
-      {/* Previous background fades out */}
-      {isTransitioning && prevFileRef.current && (
-        <BackgroundMesh file={prevFileRef.current} opacity={0} />
+      {/* Previous background fades out (1→0) using fore buffer snapshot */}
+      {isCrossfade && outgoingFile && (
+        <BackgroundMesh file={outgoingFile} startOpacity={1} targetOpacity={0} />
       )}
-      {/* Current background fades in */}
-      <BackgroundMesh
-        file={currentFile}
-        opacity={1}
-        onFadeComplete={isTransitioning ? handleFadeComplete : undefined}
-      />
+      {/* Incoming background fades in (0→1) using back buffer snapshot, or snaps to 1 if no transition.
+          key changes each transition to remount and reset firedRef. */}
+      {incomingFile && (
+        <BackgroundMesh
+          key={transitionKeyRef.current}
+          file={incomingFile}
+          startOpacity={isCrossfade ? 0 : 1}
+          targetOpacity={1}
+          onFadeComplete={isWaiting ? handleFadeComplete : undefined}
+        />
+      )}
     </>
   )
 }
