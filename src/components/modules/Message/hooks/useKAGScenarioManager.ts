@@ -21,6 +21,24 @@ export function useKAGScenarioManager() {
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const waitCanSkipRef = useRef(true)
 
+  const commitTransitionToStore = useCallback(() => {
+    const state = useKAGScenarioStore.getState()
+    const transition = state.currentTransition
+    if (!transition) return
+
+    const backLayersById = new Map(transition.backLayers.map(layer => [layer.id, layer]))
+    const committedLayers = state.layers.map(layer => {
+      if (!transition.layers.includes(layer.id)) return layer
+      return backLayersById.get(layer.id) ?? layer
+    })
+
+    setFrame({
+      layers: committedLayers,
+      isWaitingTransition: false,
+      currentTransition: undefined,
+    })
+  }, [setFrame])
+
   const applyFrame = useCallback((frame: KAGDisplayFrame, sessionId = sessionRef.current) => {
     if (sessionId !== sessionRef.current) return
 
@@ -72,10 +90,11 @@ export function useKAGScenarioManager() {
       pendingTimerRef.current = setTimeout(() => {
         pendingTimerRef.current = null
         interpreterRef.current?.onForegroundTransitionComplete()
+        commitTransitionToStore()
         void doAdvanceRef.current()
       }, frame.waitTime)
     }
-  }, [setFrame, sessionRef])
+  }, [commitTransitionToStore, setFrame, sessionRef])
 
   const doAdvance = useCallback(async (sessionId = sessionRef.current) => {
     if (sessionId !== sessionRef.current) return
@@ -187,15 +206,16 @@ export function useKAGScenarioManager() {
       clearTimeout(pendingTimerRef.current)
       pendingTimerRef.current = null
       interp?.onForegroundTransitionComplete()
+      commitTransitionToStore()
     }
     if (interp?.isWaitingTransition()) {
       if (!interp.canSkipWaitingTransition()) return
       // [wt canskip=true]: user clicked during background transition — skip it immediately
       interp.onTransitionComplete()
-      setFrame({ isWaitingTransition: false, currentTransition: undefined })
+      commitTransitionToStore()
     }
     await doAdvance()
-  }, [isScenarioEnd, doAdvance, setFrame])
+  }, [commitTransitionToStore, isScenarioEnd, doAdvance, setFrame])
 
   const handleChoiceSelect = useCallback(async (target: string) => {
     interpreterRef.current?.selectChoice(target)
@@ -205,9 +225,9 @@ export function useKAGScenarioManager() {
 
   const onTransitionComplete = useCallback(() => {
     interpreterRef.current?.onTransitionComplete()
-    setFrame({ isWaitingTransition: false, currentTransition: undefined })
+    commitTransitionToStore()
     void doAdvanceRef.current()
-  }, [setFrame])
+  }, [commitTransitionToStore])
 
   const skipToNextChoice = useCallback(async () => {
     // Fast-forward: keep advancing until choices appear or end
@@ -219,11 +239,14 @@ export function useKAGScenarioManager() {
         const entry: KAGLogEntry = { text: frame.text, speakerName: frame.speakerName }
         setFrame({ logs: [...useKAGScenarioStore.getState().logs, entry] })
       }
-      if (frame.isWaitingTransition) interp.onTransitionComplete()
+      if (frame.isWaitingTransition) {
+        interp.onTransitionComplete()
+        commitTransitionToStore()
+      }
       frame = await interp.advance()
     }
     applyFrame(frame)
-  }, [applyFrame, setFrame])
+  }, [applyFrame, commitTransitionToStore, setFrame])
 
   const registerKagHandlers = useCallback((interp: KAGInterpreter) => {
     interp.setKagHandler('callExtraConductor', (file, target) => {
@@ -282,11 +305,11 @@ export function useKAGScenarioManager() {
     // Register the onTransitionComplete callback in the store so Background3D can call it
     useKAGScenarioStore.getState().setTransitionCompleteCallback(() => {
       interpreterRef.current?.onTransitionComplete()
-      useKAGScenarioStore.getState().setFrame({ isWaitingTransition: false, currentTransition: undefined })
+      commitTransitionToStore()
       void doAdvanceRef.current()
     })
     void doAdvance(sessionRef.current)
-  }, [doAdvance, registerKagHandlers, sessionRef])
+  }, [commitTransitionToStore, doAdvance, registerKagHandlers, sessionRef])
 
   return {
     goToNextLine,
