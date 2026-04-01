@@ -1,9 +1,9 @@
-import React, { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { Background3D } from './modules/Background/Background3D';
-import { ForegroundLayer } from './modules/ForegroundLayer/ForegroundLayer';
+import React from 'react'
+import { Canvas } from '@react-three/fiber'
+import { useThreeContentStore } from '@/states/threeContentStore'
 
 export const ThreeCanvas: React.FC = () => {
+  const SceneThreeComponent = useThreeContentStore(s => s.SceneThreeComponent)
   return (
     <div className="absolute inset-0 z-0" style={{ pointerEvents: 'none' }}>
       <Canvas
@@ -18,14 +18,10 @@ export const ThreeCanvas: React.FC = () => {
         onCreated={({ gl }) => {
           const canvas = gl.domElement
           canvas.addEventListener('webglcontextlost', event => {
-            console.error('[ThreeCanvas] webglcontextlost', {
-              type: event.type,
-            })
+            console.error('[ThreeCanvas] webglcontextlost', { type: event.type })
           })
           canvas.addEventListener('webglcontextrestored', event => {
-            console.warn('[ThreeCanvas] webglcontextrestored', {
-              type: event.type,
-            })
+            console.warn('[ThreeCanvas] webglcontextrestored', { type: event.type })
           })
           console.info('[ThreeCanvas] canvas created', {
             maxTextureSize: gl.capabilities.maxTextureSize,
@@ -35,11 +31,8 @@ export const ThreeCanvas: React.FC = () => {
         }}
         flat
       >
-        <Suspense fallback={null}>
-          <Background3D />
-          <ForegroundLayer />
-        </Suspense>
+        {SceneThreeComponent && <SceneThreeComponent />}
       </Canvas>
     </div>
-  );
-};
+  )
+}
