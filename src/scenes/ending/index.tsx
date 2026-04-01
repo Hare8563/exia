@@ -1,4 +1,3 @@
-import React from 'react'
 import { useSceneStore } from '@/scene-manager/sceneStore'
 
 export default function EndingScene() {

@@ -5,14 +5,6 @@ export const CONFIG = {
   DEBUG: false,
 };
 
-export const SCREEN = {
-  START_SCREEN: 0,
-  MAIN_SCREEN: 1,
-  ENDING_SCREEN: 2,
-  SIGN_IN: 3,
-  ASSET_UPDATE: 4,
-} as const;
-
 export const SCENE = {
   SIGN_IN: 'sign-in',
   ASSET_UPDATE: 'asset-update',

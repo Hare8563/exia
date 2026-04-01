@@ -1,4 +1,3 @@
-import { SCREEN } from "@/constants";
 import { TypewriterClass } from "typewriter-effect";
 
 export type Scenario = {
@@ -114,12 +113,6 @@ export type Navigation = {
 };
 
 export type Config = {};
-
-export type ScreenType = (typeof SCREEN)[keyof typeof SCREEN];
-export type Screen = {
-  screen: ScreenType;
-  isLoaded: boolean;
-};
 
 // レイアウトコンポーネントのProps型定義
 export type MessageLayoutProps = {
