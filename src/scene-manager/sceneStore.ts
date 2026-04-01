@@ -1,9 +1,10 @@
 import { create } from 'zustand'
+import type { SceneId } from '@/constants'
 
 interface SceneStore {
-  currentScene: string
-  previousScene: string | null
-  navigate: (to: string) => void
+  currentScene: SceneId
+  previousScene: SceneId | null
+  navigate: (to: SceneId) => void
 }
 
 export const useSceneStore = create<SceneStore>((set, get) => ({

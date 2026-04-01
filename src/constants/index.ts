@@ -13,6 +13,16 @@ export const SCREEN = {
   ASSET_UPDATE: 4,
 } as const;
 
+export const SCENE = {
+  SIGN_IN: 'sign-in',
+  ASSET_UPDATE: 'asset-update',
+  TITLE: 'title',
+  NOVEL: 'novel',
+  ENDING: 'ending',
+} as const
+
+export type SceneId = (typeof SCENE)[keyof typeof SCENE]
+
 // メッセージ表示に関する定数
 export const MESSAGE_CONFIG = {
   LOADING_DELAY: 1000, // ローディング後のセリフ表示間隔(ms)

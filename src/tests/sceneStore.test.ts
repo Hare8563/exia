@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useSceneStore } from '@/scene-manager/sceneStore'
 
-beforeEach(() => {
-  useSceneStore.setState({ currentScene: 'sign-in', previousScene: null })
-})
-
 describe('sceneStore', () => {
+  beforeEach(() => {
+    useSceneStore.setState({ currentScene: 'sign-in', previousScene: null })
+  })
+
   it('initializes to sign-in', () => {
     expect(useSceneStore.getState().currentScene).toBe('sign-in')
     expect(useSceneStore.getState().previousScene).toBeNull()
