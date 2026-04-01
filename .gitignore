@@ -35,3 +35,7 @@ yarn-error.log*
 /public/images
 /public/sounds
 /public/scenarios
+
+# asset deploy pipeline
+/scripts/output
+.firebase-service-account.json
