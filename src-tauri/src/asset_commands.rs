@@ -3,6 +3,24 @@
 use std::path::PathBuf;
 use tauri::Manager;
 
+fn validate_path_component(s: &str) -> Result<(), String> {
+    if s.contains("..") || s.contains('/') || s.contains('\\') {
+        return Err(format!("invalid path component: {s}"));
+    }
+    Ok(())
+}
+
+fn sanitize_asset_name(name: &str) -> Result<String, String> {
+    // Check each component of the path
+    for component in std::path::Path::new(name).components() {
+        match component {
+            std::path::Component::Normal(_) => {}
+            _ => return Err(format!("invalid path in asset name: {name}")),
+        }
+    }
+    Ok(name.to_string())
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ExtractedAssetEntry {
     pub id: String,             // filename with extension: "bg_school.webp"
@@ -44,6 +62,8 @@ pub fn asset_download_and_extract(
     pack_id: String,
     expected_md5: String,
 ) -> Result<Vec<ExtractedAssetEntry>, String> {
+    validate_path_component(&pack_id)?;
+
     // 1. Download
     let bytes = reqwest::blocking::get(&url)
         .map_err(|e| format!("download failed: {e}"))?
@@ -69,22 +89,23 @@ pub fn asset_download_and_extract(
 
     let mut result = Vec::new();
     for entry in &xp3_entries {
-        let dest = base_dir.join(&entry.name);
+        let safe_name = sanitize_asset_name(&entry.name)?;
+        let dest = base_dir.join(&safe_name);
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         std::fs::write(&dest, &entry.data).map_err(|e| e.to_string())?;
 
         // ID = filename with extension (matches KAG storage= parameter)
-        let id = std::path::Path::new(&entry.name)
+        let id = std::path::Path::new(&safe_name)
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or(&entry.name)
+            .unwrap_or(&safe_name)
             .to_string();
 
         result.push(ExtractedAssetEntry {
             id,
-            extracted_path: format!("assets/{}/{}", pack_id, entry.name),
+            extracted_path: format!("assets/{}/{}", pack_id, safe_name),
         });
     }
 

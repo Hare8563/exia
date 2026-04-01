@@ -215,6 +215,8 @@ export class KAGInterpreter {
     this.voiceFile = undefined
     this.seFile = undefined
 
+    const visitedJumpPositions = new Set<number>()
+    let hitPause = false
     while (this.cursor < this.tokens.length) {
       const tok = this.tokens[this.cursor]
       this.cursor++
@@ -227,13 +229,19 @@ export class KAGInterpreter {
       }
       if (tok.type === 'Tag') {
         const { name, attrs } = tok
+        // Guard against infinite loops caused by [jump] resetting cursor backward
+        if (name === 'jump' && !attrs.storage && !attrs.target) {
+          const jumpPos = this.cursor - 1
+          if (visitedJumpPositions.has(jumpPos)) continue
+          visitedJumpPositions.add(jumpPos)
+        }
         const handled = this.handleTag(name, attrs)
-        if (handled === 'pause') break
+        if (handled === 'pause') { hitPause = true; break }
         if (handled === 'end') return this.buildFrame(true)
       }
     }
 
-    return this.buildFrame(this.cursor >= this.tokens.length)
+    return this.buildFrame(!hitPause && this.cursor >= this.tokens.length)
   }
 
   private handleTag(
@@ -417,9 +425,23 @@ export class KAGInterpreter {
         })
         return 'continue'
 
-      case 'stoptrans':
+      case 'stoptrans': {
+        // If [wt] was never called, build activeTransition from runningTransitions first
+        if (!this.activeTransition && this.runningTransitions.length > 0) {
+          const entries = this.runningTransitions.flatMap(t => this.expandTransitionEntries(t))
+          const uniqueLayers = Array.from(new Set(entries.map(entry => entry.layer)))
+          this.activeTransition = {
+            method: entries[0]?.method ?? this.runningTransitions[0]?.method ?? 'universal',
+            time: Math.max(...entries.map(entry => entry.time)),
+            layers: uniqueLayers,
+            entries,
+            foreLayers: Array.from(this.foreLayers.values()).map(l => ({ ...l })),
+            backLayers: Array.from(this.backLayers.values()).map(l => ({ ...l })),
+          }
+        }
         this.onTransitionComplete()
         return 'continue'
+      }
 
       case 'wait':
         this.pendingWaitCanSkip = this.parseBooleanAttr(attrs.canskip, true)

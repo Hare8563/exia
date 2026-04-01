@@ -1,5 +1,54 @@
 // src/tests/kagInterpreter.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('@/firebase', () => ({
+  auth: {},
+  db: {},
+  storage: {},
+}))
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: () => Promise.resolve(undefined),
+  convertFileSrc: (path: string) => `asset://localhost/${path.replace(/\\/g, '/')}`,
+}))
+
+vi.mock('firebase/firestore', () => ({
+  collection: () => ({}),
+  getDocs: () => Promise.resolve({ docs: [] }),
+}))
+
+vi.mock('firebase/storage', () => ({
+  ref: () => ({}),
+  getDownloadURL: () => Promise.resolve(''),
+}))
+
+vi.mock('firebase/auth', () => ({
+  getAuth: () => ({}),
+  onAuthStateChanged: () => () => {},
+  signInWithEmailAndPassword: () => Promise.resolve({ user: {} }),
+}))
+
+vi.mock('@/utils/assetManager', () => {
+  const noop = () => {}
+  const noopAsync = () => Promise.resolve(undefined)
+  return {
+    AssetManager: class {
+      initialize() { return noopAsync() }
+      resolve(id: string) { return `/${id}` }
+      checkUpdates() { return Promise.resolve([]) }
+      downloadPack() { return noopAsync() }
+      applyPackToManifest() { return noopAsync() }
+    },
+    assetManager: {
+      initialize: noop,
+      resolve: (id: string) => `/${id}`,
+      checkUpdates: () => Promise.resolve([]),
+      downloadPack: noop,
+      applyPackToManifest: noop,
+    },
+  }
+})
+
 import { KAGInterpreter } from '@/utils/kagInterpreter'
 import { parseClickableMap } from '@/utils/clickableMap'
 import type { KagToken } from '@/types/kag'

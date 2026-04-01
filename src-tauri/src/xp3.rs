@@ -32,6 +32,8 @@ pub fn extract_xp3(data: &[u8]) -> Result<Vec<Xp3Entry>, String> {
     let mut pos = index_offset + 1;
     let index_body: Vec<u8>;
 
+    if pos + 8 > data.len() { return Err("truncated index flag field".into()); }
+
     if flag & 0x07 == INDEX_ENCODE_ZLIB {
         let comp_size = r_u64(data, pos) as usize; pos += 8;
         let orig_size = r_u64(data, pos) as usize; pos += 8;
@@ -67,6 +69,7 @@ pub fn extract_xp3(data: &[u8]) -> Result<Vec<Xp3Entry>, String> {
         while sub + 12 <= chunk.len() {
             let stag = &chunk[sub..sub+4]; sub += 4;
             let ssize = r_u64(chunk, sub) as usize; sub += 8;
+            if sub + ssize > chunk.len() { return Err("sub-chunk body out of bounds".into()); }
             let sbody = &chunk[sub..sub+ssize]; sub += ssize;
 
             if stag == b"info" && sbody.len() >= 22 {
