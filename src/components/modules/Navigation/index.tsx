@@ -5,9 +5,8 @@ import { useSkipActionStore } from "@/states/skipActionStore";
 import { useKAGScenarioStore } from "@/states/kagScenarioStore";
 import { ArrowPathIcon } from "@heroicons/react/24/solid";
 import { SkipModal } from "../Modal/SkipModal";
-import { useScreenStore } from "@/states/screenStore";
-import { SCREEN } from "@/constants";
 import { useKAGScenarioManager } from "../Message/hooks/useKAGScenarioManager";
+import { useSceneStore } from "@/scene-manager/sceneStore";
 
 type NavigationItem = {
   label: string;
@@ -20,7 +19,7 @@ export const Navigation: React.FC = () => {
   const { skipAction } = useSkipActionStore();
   const { skipToNextChoice } = skipAction;
   const uiState = useKAGScenarioStore(s => s.uiState);
-  const { setScreen } = useScreenStore();
+  const navigate = useSceneStore(s => s.navigate);
   const { executeButtonExp } = useKAGScenarioManager();
 
   const visibleButtons = new Map(
@@ -42,8 +41,8 @@ export const Navigation: React.FC = () => {
   }, [navigation, setNavigation]);
 
   const handleTitle = useCallback(() => {
-    setScreen({ screen: SCREEN.START_SCREEN });
-  }, [setScreen]);
+    navigate('title');
+  }, [navigate]);
 
   const runButtonExp = useCallback((graphic: string, fallback?: () => void) => {
     const button = visibleButtons.get(graphic);
