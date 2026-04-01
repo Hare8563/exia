@@ -156,11 +156,12 @@ def pack_xp3(source_dir: str, output_path: str) -> list:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        print("Usage: python3 pack_xp3.py <source_dir> <output_xp3_file>", file=sys.stderr)
+    if len(sys.argv) < 3:
+        print("Usage: python3 pack_xp3.py <source_dir> <output_xp3_file> [manifest_file]", file=sys.stderr)
         sys.exit(1)
 
     source_dir, output_path = sys.argv[1], sys.argv[2]
+    manifest_path = sys.argv[3] if len(sys.argv) > 3 else None
 
     if not os.path.isdir(source_dir):
         print(f"ERROR: not a directory: {source_dir}", file=sys.stderr)
@@ -168,9 +169,15 @@ def main() -> None:
 
     manifest = pack_xp3(source_dir, output_path)
 
-    # Output manifest JSON to stdout (for deploy_pack.js --manifest)
-    json.dump(manifest, sys.stdout, ensure_ascii=False, indent=2)
-    print()
+    # Output manifest JSON
+    if manifest_path:
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        print(f"[pack_xp3] Manifest written to {manifest_path}", file=sys.stderr)
+    else:
+        # Fallback to stdout
+        json.dump(manifest, sys.stdout, ensure_ascii=False, indent=2)
+        print()
 
     print(f"[pack_xp3] Done. {len(manifest)} assets packed.", file=sys.stderr)
 

@@ -36,10 +36,10 @@
 
 *start
 ;■背景:チュートリアル背景・昼
-[FAID_IN_CG back_cg="bg_01.webp" time=1500]
+[FAID_IN_CG back_cg="bg_forest.png" time=1500]
 [PLAY_BGM bgm="b0001.mp3" bgm_flag=1]
 ;■立ち絵：渚（中央）・凛（前面）登場
-[CHARA_ON ch_c="alicia/default/neutral/sprite_neutral__00001_.png" ch_r="layra/default/neutral/sprite_neutral__00001_.png" time=1000 ch_count=5]
+[CHARA_ON ch_c="alicia_default_neutral_00001.png" ch_r="layra_default_neutral_00001.png" time=1000 ch_count=5]
 [cm][MESSAGE_ON]
 [CH_NAME_OFF]
 ようこそ、Exiaノベルゲームエンジンへ！[r]このチュートリアルでは、基本機能を紹介します。[SYSTEM_MENU_ON]
@@ -71,7 +71,7 @@
 テキストは[r]このように改行したり、サイズを変えたりすることもできます。[SYSTEM_MENU_ON]
 
 ;■カットイン表示
-[ITEM_IN item_name=cut_01.webp]
+[ITEM_IN item_name="bg_forest_hypno.png"]
 [cm][MESSAGE_ON]
 [CH_NAME_OFF]
 これはカットインです。特定のシーンを強調するために使用できます。[SYSTEM_MENU_ON]
