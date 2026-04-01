@@ -86,24 +86,139 @@ POST http://127.0.0.1:8188/prompt
 
 ### ワークフロー選択基準
 
-| 用途 | ワークフロー |
-|------|------------|
-| 通常CG生成 | `resources/AnimaWorkflow.json` |
-| LoRA適用（キャラ固定） | `resources/AnimaWorkflow_with_lora.json` |
-| 差分生成（表情・液体のみ変更） | `resources/SAM3AnimaMaskWorkflow.json` |
-| 差分生成+LoRA | `resources/SAM3MaskWorkflow_lora.json` |
+| 用途 | ワークフロー | 主なシード固定方法 |
+|------|------------|-----------------|
+| 通常CG生成 | `resources/AnimaWorkflow.json` | seed固定 |
+| LoRA適用（キャラ固定・高品質ベースCG） | `resources/AnimaWorkflow_with_lora.json` | seed固定 |
+| **SDXL+LoRA（成人向けベースCG）** | `resources/SdxlWithLoRA.json` | seed固定 |
+| **表情変更（SAM3顔検出→LoRAインペイント）** | `resources/SAM3SdxlWithLoRA.json` | 元画像+顔マスク自動 |
+| 差分生成（マスク手動・表情・液体） | `resources/SAM3AnimaMaskWorkflow.json` | 元画像+マスク |
+| 差分生成+LoRA（マスク手動） | `resources/SAM3MaskWorkflow_lora.json` | 元画像+マスク |
+| **差分生成（Qwen画像編集・衣装/体液/露出）** | `resources/QwenImageEditNsfw.json` | 入力画像+編集指示 |
 
 ### 出力サイズ
 
 - **フルスクリーンCG** (`isFullScreen: true`): 1344×768
 - **カットイン** (`isFullScreen: false`): 1024×1024
 
-### 差分生成の原則
+### 差分生成の原則（SDXL vs Qwen の使い分け）
 
-差分が必要な場合：
-1. ベースCG（表情なし/中間状態）を先に生成して固定する
-2. SAM3ワークフローでマスキングし、表情レイヤーのみ変更する
-3. ControlNetでポーズを固定し、液体・衣装レイヤーを差し替える
+| 差分の変化内容 | 推奨ワークフロー | 理由 |
+|-------------|---------------|------|
+| ベースCG（最初の1枚） | **SdxlWithLoRA** | キャラLoRA×高品質テキスト→画像 |
+| 構図・ポーズの大幅変更 | **SdxlWithLoRA** | 別プロンプトで生成し直す |
+| **表情のみ変更（羞恥→快感→恍惚）** | **SAM3SdxlWithLoRA** | SAM3で顔を自動検出→顔領域のみSDXL+LoRAでインペイント |
+| 衣装の一部除去・胸露出 | **QwenImageEditNsfw** | 局所変更に最適 |
+| 体液追加（愛液・精液・汗） | **QwenImageEditNsfw** | 背景・体型を崩さず追加 |
+| アングル微調整 | **QwenImageEditNsfw** | 構図を維持して調整 |
+| 全裸 or 完全な体位変換 | **SdxlWithLoRA** | 大きな変化は再生成が安定 |
+
+#### SdxlWithLoRA の API 変更箇所
+
+```json
+"3": { "inputs": { "ckpt_name": "waiNSFWIllustrious_v150.safetensors" } },
+"4": { "inputs": { "lora_name": "Illustrious/キャラ名.safetensors", "strength_model": 1, "strength_clip": 1 } },
+"5": { "inputs": { "text": "【ポジティブプロンプト】" } },
+"6": { "inputs": { "text": "【ネガティブプロンプト】" } },
+"7": { "inputs": { "seed": 0, "steps": 20, "cfg": 8 } },
+"8": { "inputs": { "width": 1344, "height": 768 } }
+```
+
+#### SAM3SdxlWithLoRA の API 変更箇所
+
+SAM3が顔領域を自動検出し、その部分だけSDXL+LoRAでインペイントする。
+
+```json
+"14": { "inputs": { "image": "ComfyUI_XXXXX_.png" } },
+"5":  { "inputs": { "text": "【新しい表情タグ】, 1girl, solo, masterpiece, best quality" } },
+"6":  { "inputs": { "text": "bad quality,worst quality,worst detail,sketch,censor," } },
+"4":  { "inputs": { "lora_name": "Illustrious/キャラ名.safetensors" } },
+"13": { "inputs": { "seed": 0, "denoise": 0.5 } },
+"17": { "inputs": { "prompt": "face", "threshold": 0.4 } }
+```
+
+- `denoise` は `0.4〜0.6` で調整（低いほど元の顔に近い、高いほど大きく変化）
+- SAM3の `prompt` は `"face"` 固定でOK
+- 顔以外（髪・体・背景）は一切変わらないため差分間の一貫性が高い
+
+#### QwenImageEditNsfw の API 変更箇所
+
+```json
+"103": { "inputs": { "image": "ComfyUI_XXXXX_.png" } },
+"104": { "inputs": { "prompt": "【編集指示・英語自然言語】" } },
+"106": { "inputs": { "prompt": "" } },
+"3":   { "inputs": { "seed": 884593183639559 } }
+```
+
+Qwen のプロンプトは**タグ列挙ではなく自然言語の編集指示**で書く：
+
+```
+# 表情変化の例
+"Change her facial expression to ahegao, rolling eyes upward, mouth wide open, drooling, face flushed deep red"
+
+# 体液追加の例
+"Add white semen splattered on her lower abdomen and inner thighs, glistening wet"
+
+# 露出追加の例
+"Remove her bra, expose her bare breasts with erect pink nipples, keep everything else the same"
+
+# 挿入シーンへの変化
+"Show erect penis inserted into her vagina, add love juices dripping, maintain her current expression"
+```
+
+---
+
+## Phase 3.5: 差分CGシリーズ設計（6〜10枚構成）
+
+成人向けシーン1本で6〜10枚の差分CGを作る際の標準パターン。
+
+### 6枚構成（コンパクト）
+
+| 差分 | 内容 | ワークフロー |
+|------|------|------------|
+| `_01`（base） | セットアップ：衣服あり or 露出開始・表情は羞恥/期待 | SdxlWithLoRA |
+| `_01a` | 脱衣 or 愛撫開始・胸露出 | QwenImageEditNsfw |
+| `_01b` | 挿入前 or 挿入開始 | SdxlWithLoRA（構図変化あり） |
+| `_01c` | 快感表情に変化 | **SAM3SdxlWithLoRA** |
+| `_01d` | 恍惚表情・行為進行（体液追加） | SAM3SdxlWithLoRA + QwenImageEditNsfw |
+| `_01e` | 射精・体液追加・満足表情 | QwenImageEditNsfw |
+
+### 8枚構成（スタンダード）
+
+| 差分 | 内容 | ワークフロー |
+|------|------|------------|
+| `_01`（base） | 衣服あり・羞恥/驚き | SdxlWithLoRA |
+| `_01a` | 上半身露出・恥じらい | QwenImageEditNsfw |
+| `_01b` | 全裸 or 下半身露出 | QwenImageEditNsfw |
+| `_01c` | 挿入開始・体位確立 | SdxlWithLoRA |
+| `_01d` | 快感表情に変化 | **SAM3SdxlWithLoRA** |
+| `_01e` | 恍惚・愛液追加 | SAM3SdxlWithLoRA（表情）→ QwenImageEditNsfw（体液） |
+| `_01f` | 絶頂（ahegao・汗・涙） | **SAM3SdxlWithLoRA** |
+| `_01g` | 射精後・満足/放心 | QwenImageEditNsfw（体液）→ SAM3SdxlWithLoRA（表情） |
+
+### 10枚構成（フル）
+
+| 差分 | 内容 | ワークフロー |
+|------|------|------------|
+| `_01`（base） | 初期状態・着衣/半裸・羞恥 | SdxlWithLoRA |
+| `_01a` | 胸部露出 | QwenImageEditNsfw |
+| `_01b` | 下半身露出・陰部あらわ | QwenImageEditNsfw |
+| `_01c` | 愛撫（乳首刺激・口淫）・別構図 | SdxlWithLoRA |
+| `_01d` | 挿入開始・体位確立 | SdxlWithLoRA |
+| `_01e` | 快感表情に変化 | **SAM3SdxlWithLoRA** |
+| `_01f` | 恍惚・舌出し＋愛液分泌 | SAM3SdxlWithLoRA（表情）→ QwenImageEditNsfw（体液） |
+| `_01g` | 動画プレースホルダ（INVISIBLE_CG） | **SAM3SdxlWithLoRA** |
+| `_01h` | 絶頂（ahegao・白目・涙・唾液） | **SAM3SdxlWithLoRA** |
+| `_01i` | 射精後（精液まみれ・放心） | QwenImageEditNsfw（体液）→ SAM3SdxlWithLoRA（表情） |
+
+### CGSample.md から学んだ差分設計の傾向
+
+1. **感情進行は細かく刻む**：羞恥→期待→快感→恍惚→絶頂→放心の6段階を意識する
+2. **体液は段階的に追加**：愛液（初期）→汗（中盤）→精液（末期）の順
+3. **構図変化は2〜3回**：全体→上半身クローズ→結合部接写のいずれかで視点を変える
+4. **脱衣は最初に集中**：最初の2〜3枚で脱衣を済ませ、以後は行為の進行に集中
+5. **射精シーンは必ず用意**：精液の描写（腹部・陰部・体内）を少なくとも1枚
+6. **QwenはSdxlのあとに使う**：必ずSdxlでベース画像を確立してからQwenで派生させる
 
 ---
 

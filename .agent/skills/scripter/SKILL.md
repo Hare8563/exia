@@ -231,6 +231,78 @@ S_000.ks のように、各スクリプトは `*entry` ラベルで初期化し�
 - 差分切り替えは必ず `[FAID_CH_CG time=500]`（クロスフェード、500ms固定）
 - 新規CG開始の `[FAID_IN_CG time=1500]` とは使い分けること
 
+#### ②-2 成人向けシーン：6〜10枚差分の組み立てパターン
+
+差分が多いシーンでは、感情・行為の進行に合わせて以下の骨格で組み立てる。
+
+```ks
+;■イベントCG開始
+[cm][MESSAGE_OFF]
+[ALL_OFF back_cg="black" out_number=0 time=1500][STOP_BGM bgm_flag=1]
+
+*scene_log_xxx01
+[eval exp="sf.seen_xxx_no01 = 1"]
+[FAID_IN_CG back_cg="xxx_01" time=1500]       ; ベース（羞恥/着衣）
+[PLAY_BGM bgm="bgm_009" bgm_flag=1]
+[cm][MESSAGE_ON]
+
+; ～ 羞恥〜期待 のセリフ ～
+
+;■脱衣開始
+[FAID_CH_CG back_cg="xxx_01a" time=500]       ; 差分a（胸露出など）
+[cm][MESSAGE_ON]
+
+; ～ 快感が高まるセリフ ～
+
+;■行為進行
+[FAID_CH_CG back_cg="xxx_01b" time=500]       ; 差分b（下半身露出 or 挿入前）
+[cm][MESSAGE_ON]
+
+[FAID_CH_CG back_cg="xxx_01c" time=500]       ; 差分c（挿入・愛液）
+[cm][MESSAGE_ON]
+
+; ～ 恍惚のセリフ・断片テキスト ～
+
+;■絶頂へ
+[FAID_CH_CG back_cg="xxx_01d" time=500]       ; 差分d（恍惚・汗）
+[cm][MESSAGE_ON]
+
+; 絶頂直前の断片テキスト（……3〜5連）
+[FAID_CH_CG back_cg="xxx_01e" time=300]       ; 差分e（ahegao近く）
+[cm][MESSAGE_ON]
+
+;■絶頂（動画あり/なし分岐）
+[eval exp="sf.movie_xxx_no01 = 1"]
+[if exp="sf.config_anime_mode == 0"]
+    [PLAY_MOVIE_LOOP movie_name1="xxx_01a.mpg" movie_name2="xxx_01a.mpg" layer_name="xxx_01f"]
+    [INVISIBLE_CG back_cg="xxx_01f"]          ; 差分f（動画プレースホルダ）
+[else]
+    [FAID_CH_CG back_cg="xxx_01f" time=300]
+[endif]
+[cm][MESSAGE_ON]
+
+;■射精
+[FAID_CH_CG back_cg="xxx_01g" time=500]       ; 差分g（精液・絶頂表情）
+[cm][MESSAGE_ON]
+
+;■余韻
+[FAID_CH_CG back_cg="xxx_01h" time=1000]      ; 差分h（放心・満足）
+[cm][MESSAGE_ON]
+```
+
+**差分枚数別のマッピング目安：**
+
+| 枚数 | a〜の振り当て |
+|------|------------|
+| 6枚 | a:脱衣, b:挿入前, c:恍惚, d:絶頂(動画PH), e:射精 |
+| 8枚 | a:上半身露出, b:下半身露出, c:挿入, d:愛液, e:恍惚, f:絶頂(動画PH), g:射精後 |
+| 10枚 | a:胸露出, b:下半身露出, c:愛撫, d:挿入, e:愛液+汗, f:恍惚, g:動画PH, h:ahegao, i:射精後 |
+
+**感情タイミングの原則：**
+- 羞恥〜期待のセリフは **base〜差分b** の間に集中させる
+- 快感ピークの断片テキスト（`……`, `あ、あっ`）は差分切り替え直前に3〜5本挿入
+- 射精差分の後は **必ず1〜2本の余韻ナレーション**（`[wait time=1500 canskip=true]` も可）を入れる
+
 #### ③ 差分切り替え（アニメーション対応）
 
 動画アニメが存在するシーンでは、`sf.config_anime_mode` で静止画/動画を切り替える：
