@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
+import { assetManager } from '@/utils/assetManager'
 
 const FADE_SPEED = 3   // crossfade animation speed
 
@@ -16,7 +17,7 @@ function BackgroundMesh({ file, startOpacity, targetOpacity, onFadeComplete }: {
   const matRef = useRef<THREE.MeshBasicMaterial>(null)
   const firedRef = useRef(false)
   const { viewport } = useThree()
-  const texture = useTexture(`/images/bgimage/${file}`)
+  const texture = useTexture(assetManager.resolve(file, 'images/bgimage'))
 
   useEffect(() => {
     texture.generateMipmaps = false

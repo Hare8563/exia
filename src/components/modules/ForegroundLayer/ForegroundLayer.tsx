@@ -4,6 +4,7 @@ import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 import type { KAGLayer, KAGMoveEntry } from '@/types/kag'
+import { assetManager } from '@/utils/assetManager'
 
 const ANIM_SPEED = 8
 
@@ -14,7 +15,7 @@ function LayerSprite({ layer, startOpacity, move }: { layer: KAGLayer; startOpac
   const { viewport } = useThree()
 
   const imageDir = typeof layer.id === 'number' && layer.id >= 3 ? 'image' : 'fgimage'
-  const texture = useTexture(`/images/${imageDir}/${layer.file}`)
+  const texture = useTexture(assetManager.resolve(layer.file!, `images/${imageDir}`))
 
   useEffect(() => {
     // VN sprites are large 2D textures; mipmaps add memory pressure and can

@@ -1,5 +1,6 @@
 import React from "react";
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
+import { assetManager } from '@/utils/assetManager'
 
 export const Voice: React.FC = () => {
   const voiceFile = useKAGScenarioStore(s => s.currentVoiceFile)
@@ -13,7 +14,7 @@ export const Voice: React.FC = () => {
     return (
       <audio
         key={`${voicePlayback?.playId ?? 0}:${voiceFile}`}
-        src={`/sounds/voices/${voiceFile}`}
+        src={assetManager.resolve(voiceFile, 'sounds/voices')}
         autoPlay
         onEnded={() => {
           audioWaitCompleteCallback?.('voice', voicePlayback?.buf ?? 2)

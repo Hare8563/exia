@@ -1,3 +1,5 @@
+import { assetManager } from '@/utils/assetManager'
+
 export type ClickableMapAction = {
   storage?: string
   target?: string
@@ -83,37 +85,22 @@ export async function fetchFirstAvailable(paths: string[]): Promise<string | nul
 
 export async function loadClickableMapDefinition(storage: string): Promise<ParsedClickableMap | null> {
   const normalized = storage.replace(/^\/+/, '')
-  const paths = normalized.endsWith('.ma')
-    ? [`/${normalized}`]
-    : [`/${normalized}.ma`, `/scenarios/${normalized}.ma`]
-  const content = await fetchFirstAvailable(paths)
-  return content ? parseClickableMap(content) : null
+  const url = assetManager.resolve(
+    normalized.endsWith('.ma') ? normalized : `${normalized}.ma`,
+    'scenarios',
+  )
+  const response = await fetch(url)
+  if (response.ok) return parseClickableMap(await response.text())
+  return null
 }
 
 export async function loadClickableMapImage(storage: string): Promise<HTMLImageElement | null> {
   const normalized = storage.replace(/^\/+/, '')
-  const candidates = [
-    `/${normalized}`,
-    `/images/image/${normalized}`,
-    `/images/bgimage/${normalized}`,
-    `/images/fgimage/${normalized}`,
-    `/${normalized}.png`,
-    `/${normalized}.webp`,
-    `/images/image/${normalized}.png`,
-    `/images/image/${normalized}.webp`,
-    `/images/bgimage/${normalized}.png`,
-    `/images/bgimage/${normalized}.webp`,
-  ]
-
-  for (const src of candidates) {
-    const img = await new Promise<HTMLImageElement | null>(resolve => {
-      const image = new Image()
-      image.onload = () => resolve(image)
-      image.onerror = () => resolve(null)
-      image.src = src
-    })
-    if (img) return img
-  }
-
-  return null
+  const url = assetManager.resolve(normalized, 'images/image')
+  return new Promise<HTMLImageElement | null>(resolve => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => resolve(null)
+    image.src = url
+  })
 }

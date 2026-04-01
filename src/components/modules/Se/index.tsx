@@ -1,5 +1,6 @@
 import React from 'react'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
+import { assetManager } from '@/utils/assetManager'
 
 export const Se: React.FC = () => {
   const seFiles = useKAGScenarioStore(s => s.currentSeFiles ?? {})
@@ -10,7 +11,7 @@ export const Se: React.FC = () => {
       {Object.entries(seFiles).map(([buf, channel]) => (
         <audio
           key={`${buf}:${channel.playId}:${channel.file}`}
-          src={`/sounds/se/${channel.file}`}
+          src={assetManager.resolve(channel.file, 'sounds/se')}
           autoPlay
           loop={channel.loop}
           onEnded={() => {
