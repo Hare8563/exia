@@ -3,11 +3,11 @@ import { useThreeContentStore } from '@/states/threeContentStore'
 
 function MockComponent() { return null }
 
-beforeEach(() => {
-  useThreeContentStore.setState({ SceneThreeComponent: null })
-})
-
 describe('threeContentStore', () => {
+  beforeEach(() => {
+    useThreeContentStore.setState({ SceneThreeComponent: null })
+  })
+
   it('initializes to null', () => {
     expect(useThreeContentStore.getState().SceneThreeComponent).toBeNull()
   })
