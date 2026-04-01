@@ -21,7 +21,9 @@ const App = () => {
   return (
     <div className="relative h-[100svh] max-h-[100svh] overflow-hidden select-none">
       <ThreeCanvas />
-      <SceneManager />
+      <div className="absolute inset-0 z-10">
+        <SceneManager />
+      </div>
       {CONFIG.DEBUG && <DebugMenu />}
     </div>
   )
