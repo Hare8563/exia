@@ -9,7 +9,6 @@ import { useSceneStore } from "@/scene-manager/sceneStore";
 
 type NavigationItem = {
   label: string;
-  graphic: string;
   action?: () => void;
   visible?: boolean;
 };
@@ -77,13 +76,13 @@ export const Navigation: React.FC = () => {
   // ナビゲーションアイテムをメモ化
   const items = useMemo<NavigationItem[]>(
     () => [
-      { label: "SAVE",   graphic: "message_bt_save",   action: () => runButtonExp("message_bt_save"),                    visible: visibleButtons.has("message_bt_save") },
-      { label: "LOAD",   graphic: "message_bt_load",   action: () => runButtonExp("message_bt_load"),                    visible: visibleButtons.has("message_bt_load") },
-      { label: "AUTO",   graphic: "message_bt_auto",   action: () => runButtonExp("message_bt_auto", handleAutoPlay),    visible: visibleButtons.has("message_bt_auto") },
-      { label: "SKIP",   graphic: "message_bt_skip",   action: () => runButtonExp("message_bt_skip", handleSkipOpen),    visible: visibleButtons.has("message_bt_skip") },
-      { label: "LOG",    graphic: "message_bt_bklog",  action: () => runButtonExp("message_bt_bklog", handleLogOpen),    visible: uiState.historyEnabled && visibleButtons.has("message_bt_bklog") },
-      { label: "CONFIG", graphic: "message_bt_config", action: () => runButtonExp("message_bt_config"),                  visible: visibleButtons.has("message_bt_config") },
-      { label: "TITLE",  graphic: "message_bt_title",  action: () => runButtonExp("message_bt_title", handleTitle),      visible: uiState.startAnchorEnabled && visibleButtons.has("message_bt_title") },
+      { label: "SAVE",   action: () => runButtonExp("message_bt_save"),                    visible: visibleButtons.has("message_bt_save") },
+      { label: "LOAD",   action: () => runButtonExp("message_bt_load"),                    visible: visibleButtons.has("message_bt_load") },
+      { label: "AUTO",   action: () => runButtonExp("message_bt_auto", handleAutoPlay),    visible: visibleButtons.has("message_bt_auto") },
+      { label: "SKIP",   action: () => runButtonExp("message_bt_skip", handleSkipOpen),    visible: visibleButtons.has("message_bt_skip") },
+      { label: "LOG",    action: () => runButtonExp("message_bt_bklog", handleLogOpen),    visible: uiState.historyEnabled && visibleButtons.has("message_bt_bklog") },
+      { label: "CONFIG", action: () => runButtonExp("message_bt_config"),                  visible: visibleButtons.has("message_bt_config") },
+      { label: "TITLE",  action: () => runButtonExp("message_bt_title", handleTitle),      visible: uiState.startAnchorEnabled && visibleButtons.has("message_bt_title") },
     ],
     [handleAutoPlay, handleLogOpen, handleSkipOpen, handleTitle, runButtonExp, uiState.historyEnabled, uiState.startAnchorEnabled, visibleButtons]
   );
