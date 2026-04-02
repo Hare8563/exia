@@ -24,6 +24,7 @@ const BTN: React.CSSProperties = {
   justifyContent: "center",
   flexShrink: 0,
   padding: 0,
+  transform: "skewX(-16.2deg)",
 };
 
 const SPAN: React.CSSProperties = {
@@ -31,7 +32,7 @@ const SPAN: React.CSSProperties = {
   fontWeight: 700,
   fontSize: 24,
   lineHeight: "36px",
-  transform: "matrix(1, 0, -0.29, 0.96, 0, 0)",
+  transform: "skewX(16.2deg)",
   display: "inline-block",
 };
 
