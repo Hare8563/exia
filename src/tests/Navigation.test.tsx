@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { Navigation } from '@/components/modules/Navigation'
 import { useKAGScenarioStore } from '@/states/kagScenarioStore'
 
@@ -56,5 +56,34 @@ describe('Navigation', () => {
     const btn = screen.getByRole('button', { name: /AUTO/i })
     expect(btn.style.width).toBe('134px')
     expect(btn.style.height).toBe('47px')
+  })
+
+  it('always renders a MENU button', () => {
+    useKAGScenarioStore.setState({
+      uiState: { buttons: [], historyEnabled: false, startAnchorEnabled: false } as never,
+    })
+    render(<Navigation />)
+    expect(screen.getByRole('button', { name: /MENU/i })).not.toBeNull()
+  })
+
+  it('shows MenuPanel when MENU button is clicked', () => {
+    useKAGScenarioStore.setState({
+      uiState: { buttons: [], historyEnabled: false, startAnchorEnabled: false } as never,
+    })
+    render(<Navigation />)
+    fireEvent.click(screen.getByRole('button', { name: /MENU/i }))
+    expect(screen.getByRole('button', { name: 'fullscreen' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'log' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'skip' })).not.toBeNull()
+  })
+
+  it('hides MenuPanel when document is clicked after MENU opens', () => {
+    useKAGScenarioStore.setState({
+      uiState: { buttons: [], historyEnabled: false, startAnchorEnabled: false } as never,
+    })
+    render(<Navigation />)
+    fireEvent.click(screen.getByRole('button', { name: /MENU/i }))
+    fireEvent.click(document.body)
+    expect(screen.queryByRole('button', { name: 'fullscreen' })).toBeNull()
   })
 })
