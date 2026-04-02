@@ -138,28 +138,15 @@ export const Navigation: React.FC = () => {
         className="absolute flex flex-row items-center"
         style={{ top: 17, right: 8, gap: 8 }}
       >
-        {items.filter(item => item.visible !== false).map((item, i) => (
-          <button
-            key={i}
-            aria-label={item.label}
-            onClick={() => item.action?.()}
-            style={{ ...BTN, background: "#F2F3F5", border: "1px solid #F2F3F5" }}
-          >
-            <span style={{ ...SPAN, color: "#364A63" }}>{item.label}</span>
-          </button>
-        ))}
-
-        {visibleButtons.has("message_bt_auto") && (
-          <button
-            aria-label="AUTO"
-            onClick={() => runButtonExp("message_bt_auto", handleAutoPlay)}
-            onMouseEnter={() => setIsAutoHovered(true)}
-            onMouseLeave={() => setIsAutoHovered(false)}
-            style={autoStyle}
-          >
-            <span style={{ ...SPAN, color: autoSpanColor }}>AUTO</span>
-          </button>
-        )}
+        <button
+          aria-label="AUTO"
+          onClick={handleAutoPlay}
+          onMouseEnter={() => setIsAutoHovered(true)}
+          onMouseLeave={() => setIsAutoHovered(false)}
+          style={autoStyle}
+        >
+          <span style={{ ...SPAN, color: autoSpanColor }}>AUTO</span>
+        </button>
 
         <div style={{ position: "relative" }}>
           <button
