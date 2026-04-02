@@ -6,7 +6,7 @@ export const DialogueLayout: FC<MessageLayoutProps> = ({ characterName, children
     className="absolute bottom-0 left-0 w-full"
     style={{
       height: 248,
-      background: "linear-gradient(360deg, rgba(0, 18, 28, 0.49) 2.02%, rgba(0, 84, 130, 0) 100%)",
+      background: "linear-gradient(360deg, rgba(0, 18, 28, 0.70) 0.0%, rgba(0, 84, 130, 0) 100%)",
     }}
   >
     <div

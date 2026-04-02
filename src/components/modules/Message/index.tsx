@@ -37,7 +37,7 @@ export const Message: React.FC = () => {
 
   if (!currentText && !choices) return null
 
-  const Layout = speakerName ? DialogueLayout : NarrationLayout
+  const Layout = DialogueLayout;
 
   // Map KAG choices { text, target } to ScenarioChoice { text, jumpTo }
   const mappedChoices: ScenarioChoice[] | undefined = choices?.map(c => ({
