@@ -8,23 +8,40 @@ type ChoiceProps = {
 
 export const Choice: React.FC<ChoiceProps> = ({ choices, onSelect }) => {
   return (
-    <>
-      {/* 透過黒背景 */}
-      <div className="fixed inset-0 bg-black bg-opacity-80 z-20 pointer-events-auto" />
-
-      {/* 選択肢コンテナ */}
-      <div className="fixed inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center space-y-6 px-8 z-20 pointer-events-auto">
-        {choices.map((choice, index) => (
-          <button
-            key={index}
-            className="w-full max-w-xl bg-black bg-opacity-80 text-white py-4 px-6 border border-gray-700 hover:bg-opacity-100 hover:bg-gray-800 transition-all duration-300 flex items-center justify-center"
-            onClick={() => onSelect(choice)}
+    <div className="fixed inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center z-20 pointer-events-auto"
+      style={{ gap: 25 }}>
+      {choices.map((choice, index) => (
+        <button
+          key={index}
+          onClick={() => onSelect(choice)}
+          className="w-full pointer-events-auto"
+          style={{
+            maxWidth: 656,
+            height: 63,
+            background: "#F2F3F5",
+            borderRadius: 2,
+            border: "none",
+            filter: "drop-shadow(0px 4px 4px rgba(0,0,0,0.25)) drop-shadow(0px 4px 4px rgba(0,0,0,0.25))",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Rounded Mplus 1c', sans-serif",
+              fontWeight: 500,
+              fontSize: 24,
+              color: "#364A63",
+              textAlign: "center",
+            }}
           >
-            <span className="text-white md:text-lg font-bold text-center">{choice.text}</span>
-          </button>
-        ))}
-      </div>
-    </>
+            {choice.text}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 };
 
