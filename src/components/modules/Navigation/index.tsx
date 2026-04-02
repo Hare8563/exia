@@ -3,13 +3,13 @@ import { useCallback, useMemo } from "react";
 import { useNavigationStore } from "@/states/navigationStore";
 import { useSkipActionStore } from "@/states/skipActionStore";
 import { useKAGScenarioStore } from "@/states/kagScenarioStore";
-import { ArrowPathIcon } from "@heroicons/react/24/solid";
 import { SkipModal } from "../Modal/SkipModal";
 import { useKAGScenarioManager } from "../Message/hooks/useKAGScenarioManager";
 import { useSceneStore } from "@/scene-manager/sceneStore";
 
 type NavigationItem = {
   label: string;
+  graphic: string;
   action?: () => void;
   visible?: boolean;
 };
@@ -77,47 +77,60 @@ export const Navigation: React.FC = () => {
   // ナビゲーションアイテムをメモ化
   const items = useMemo<NavigationItem[]>(
     () => [
-      { label: "SAVE", action: () => runButtonExp("message_bt_save"), visible: visibleButtons.has("message_bt_save") },
-      { label: "LOAD", action: () => runButtonExp("message_bt_load"), visible: visibleButtons.has("message_bt_load") },
-      { label: "AUTO", action: () => runButtonExp("message_bt_auto", handleAutoPlay), visible: visibleButtons.has("message_bt_auto") },
-      { label: "SKIP", action: () => runButtonExp("message_bt_skip", handleSkipOpen), visible: visibleButtons.has("message_bt_skip") },
-      { label: "LOG", action: () => runButtonExp("message_bt_bklog", handleLogOpen), visible: uiState.historyEnabled && visibleButtons.has("message_bt_bklog") },
-      { label: "CONFIG", action: () => runButtonExp("message_bt_config"), visible: visibleButtons.has("message_bt_config") },
-      { label: "TITLE", action: () => runButtonExp("message_bt_title", handleTitle), visible: uiState.startAnchorEnabled && visibleButtons.has("message_bt_title") },
-      { label: "GITHUB", action: () => window.open("https://github.com/kokushin/exia") },
+      { label: "SAVE",   graphic: "message_bt_save",   action: () => runButtonExp("message_bt_save"),                    visible: visibleButtons.has("message_bt_save") },
+      { label: "LOAD",   graphic: "message_bt_load",   action: () => runButtonExp("message_bt_load"),                    visible: visibleButtons.has("message_bt_load") },
+      { label: "AUTO",   graphic: "message_bt_auto",   action: () => runButtonExp("message_bt_auto", handleAutoPlay),    visible: visibleButtons.has("message_bt_auto") },
+      { label: "SKIP",   graphic: "message_bt_skip",   action: () => runButtonExp("message_bt_skip", handleSkipOpen),    visible: visibleButtons.has("message_bt_skip") },
+      { label: "LOG",    graphic: "message_bt_bklog",  action: () => runButtonExp("message_bt_bklog", handleLogOpen),    visible: uiState.historyEnabled && visibleButtons.has("message_bt_bklog") },
+      { label: "CONFIG", graphic: "message_bt_config", action: () => runButtonExp("message_bt_config"),                  visible: visibleButtons.has("message_bt_config") },
+      { label: "TITLE",  graphic: "message_bt_title",  action: () => runButtonExp("message_bt_title", handleTitle),      visible: uiState.startAnchorEnabled && visibleButtons.has("message_bt_title") },
     ],
     [handleAutoPlay, handleLogOpen, handleSkipOpen, handleTitle, runButtonExp, uiState.historyEnabled, uiState.startAnchorEnabled, visibleButtons]
   );
 
   return (
     <>
-      <nav className="absolute top-0 right-0 z-50 flex items-center gap-4 text-white text-sm p-4">
+      <nav
+        className="absolute flex flex-row items-center"
+        style={{ top: 17, right: 8, gap: 8 }}
+      >
         {items.filter(item => item.visible !== false).map((item, i) => (
           <button
-            onClick={() => {
-              if (item.action) {
-                item.action();
-              } else {
-                window.alert("まだ未実装です😭");
-              }
-            }}
             key={i}
-            className="relative"
+            aria-label={item.label}
+            onClick={() => item.action?.()}
             style={{
-              textShadow: "1px 1px 0 rgba(0,0,0,.5)",
+              width: 134,
+              height: 47,
+              background: "#F2F3F5",
+              border: "1px solid #F2F3F5",
+              borderRadius: 2,
+              filter: "drop-shadow(0px 8px 4px rgba(0,0,0,0.25))",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              padding: 0,
             }}
           >
-            {item.label === "AUTO" && navigation.isAutoPlay && (
-              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                <ArrowPathIcon className="size-4 text-white animate-spin" />
-              </span>
-            )}
-            <span className={item.label === "AUTO" && navigation.isAutoPlay ? "opacity-30" : ""}>{item.label}</span>
+            <span
+              style={{
+                fontFamily: "'Rounded Mplus 1c Bold', sans-serif",
+                fontWeight: 700,
+                fontSize: 24,
+                lineHeight: "36px",
+                color: item.label === "AUTO" && navigation.isAutoPlay ? "#0099CC" : "#364A63",
+                transform: "matrix(1, 0, -0.29, 0.96, 0, 0)",
+                display: "inline-block",
+              }}
+            >
+              {item.label}
+            </span>
           </button>
         ))}
       </nav>
 
-      {/* スキップ確認モーダル */}
       <SkipModal isOpen={navigation.isSkipModalOpen} onClose={handleSkipClose} onConfirm={handleSkipConfirm} />
     </>
   );
