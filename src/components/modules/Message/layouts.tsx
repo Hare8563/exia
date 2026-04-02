@@ -1,34 +1,69 @@
 import { FC } from "react";
-import { ChevronDoubleDownIcon } from "@heroicons/react/24/solid";
 import { MessageLayoutProps } from "@/types";
 
-// セリフ表示レイアウト
 export const DialogueLayout: FC<MessageLayoutProps> = ({ characterName, children, showArrowIcon, isAutoPlay }) => (
   <div
-    className="absolute bottom-0 left-0 w-full h-60"
-    style={{ background: "linear-gradient(transparent, #000 100%)" }}
+    className="absolute bottom-0 left-0 w-full"
+    style={{
+      height: 248,
+      background: "linear-gradient(360deg, rgba(0, 18, 28, 0.49) 2.02%, rgba(0, 84, 130, 0) 100%)",
+    }}
   >
     <div
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 px-6 md:px-24 pt-24 flex flex-col gap-4 text-white w-full max-w-5xl h-full"
-      style={{
-        textShadow: "1px 1px 0 rgba(0,0,0,.5)",
-      }}
+      className="absolute bottom-0 left-0 w-full px-[133px] pb-8 flex flex-col gap-2"
+      style={{ fontFamily: "'Rounded Mplus 1c', sans-serif" }}
     >
       {characterName && (
-        <div className="relative">
-          <div className="w-[3px] h-[1em] bg-white absolute top-1/2 left-0 -mt-[0.5em]" />
-          <div className="pl-3">{characterName}</div>
-        </div>
+        <>
+          <div
+            style={{
+              fontFamily: "'Rounded Mplus 1c Bold', sans-serif",
+              fontWeight: 700,
+              fontSize: 36,
+              lineHeight: "53px",
+              color: "#FFFFFF",
+            }}
+          >
+            {characterName}
+          </div>
+          <hr
+            data-testid="dialogue-separator"
+            className="border-0"
+            style={{ height: 1, background: "#FFFFFF", margin: 0 }}
+          />
+        </>
       )}
-      <div className="flex leading-relaxed">{children}&nbsp;</div>
+      <div
+        style={{
+          fontWeight: 400,
+          fontSize: 24,
+          lineHeight: "36px",
+          color: "#FFFFFF",
+        }}
+      >
+        {children}&nbsp;
+      </div>
     </div>
+
     {showArrowIcon && !isAutoPlay && (
-      <ChevronDoubleDownIcon className="size-4 text-white absolute bottom-4 right-4 animate-bounce" />
+      <div
+        data-testid="dialogue-diamond"
+        className="absolute"
+        style={{
+          width: 22,
+          height: 22,
+          right: 110,
+          bottom: 16,
+          background: "#59F0FE",
+          border: "4px solid #244B6E",
+          transform: "rotate(45deg)",
+        }}
+      />
     )}
   </div>
 );
 
-// ナレーション表示レイアウト
+// ナレーション表示レイアウト（変更なし）
 export const NarrationLayout: FC<MessageLayoutProps> = ({ children, showArrowIcon, isAutoPlay }) => (
   <div className="absolute bottom-0 left-0 p-4 w-full text-center">
     <div
@@ -39,7 +74,17 @@ export const NarrationLayout: FC<MessageLayoutProps> = ({ children, showArrowIco
     >
       <div className="leading-relaxed">{children}</div>
       {showArrowIcon && !isAutoPlay && (
-        <ChevronDoubleDownIcon className="size-4 text-white absolute bottom-2 right-2 animate-bounce" />
+        <div
+          data-testid="dialogue-diamond"
+          className="absolute bottom-2 right-2"
+          style={{
+            width: 22,
+            height: 22,
+            background: "#59F0FE",
+            border: "4px solid #244B6E",
+            transform: "rotate(45deg)",
+          }}
+        />
       )}
     </div>
   </div>
