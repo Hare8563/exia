@@ -36,9 +36,11 @@ export const DialogueLayout: FC<MessageLayoutProps> = ({ characterName, children
           fontSize: 24,
           lineHeight: "36px",
           color: "#FFFFFF",
+          height: "144px",
+          overflow: "hidden",
         }}
       >
-        {children}&nbsp;
+        {children}
       </div>
     </div>
 
