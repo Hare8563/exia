@@ -13,26 +13,23 @@ export const DialogueLayout: FC<MessageLayoutProps> = ({ characterName, children
       className="absolute bottom-0 left-0 w-full px-[133px] pb-8 flex flex-col gap-2"
       style={{ fontFamily: "'Rounded Mplus 1c', sans-serif" }}
     >
-      {characterName && (
-        <>
-          <div
-            style={{
-              fontFamily: "'Rounded Mplus 1c Bold', sans-serif",
-              fontWeight: 700,
-              fontSize: 36,
-              lineHeight: "53px",
-              color: "#FFFFFF",
-            }}
-          >
-            {characterName}
-          </div>
-          <hr
-            data-testid="dialogue-separator"
-            className="border-0"
-            style={{ height: 1, background: "#FFFFFF", margin: 0 }}
-          />
-        </>
-      )}
+      <div
+        style={{
+          fontFamily: "'Rounded Mplus 1c Bold', sans-serif",
+          fontWeight: 700,
+          fontSize: 36,
+          lineHeight: "53px",
+          color: "#FFFFFF",
+          height: "53px",
+        }}
+      >
+        {characterName ?? ""}
+      </div>
+      <hr
+        data-testid="dialogue-separator"
+        className="border-0"
+        style={{ height: 1, background: "#FFFFFF", margin: 0 }}
+      />
       <div
         style={{
           fontWeight: 400,
