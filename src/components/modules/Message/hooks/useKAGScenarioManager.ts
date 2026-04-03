@@ -348,8 +348,12 @@ export function useKAGScenarioManager() {
       void doAdvanceRef.current()
     })
     useKAGScenarioStore.getState().setAudioWaitCompleteCallback((kind, buf) => {
+      const waiting = interpreterRef.current?.getWaitingAudio()
+      const wasWaiting = waiting?.kind === kind && waiting?.buf === buf
       interpreterRef.current?.onAudioPlaybackComplete(kind, buf)
-      void doAdvanceRef.current()
+      if (wasWaiting) {
+        void doAdvanceRef.current()
+      }
     })
     void doAdvance(sessionRef.current)
   }, [commitTransitionToStore, doAdvance, registerKagHandlers, sessionRef])
