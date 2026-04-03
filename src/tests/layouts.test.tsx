@@ -20,12 +20,12 @@ describe('DialogueLayout', () => {
     expect(hr).not.toBeNull()
   })
 
-  it('does not render separator line when characterName is absent', () => {
+  it('always renders separator line (layout stable with or without characterName)', () => {
     const { container } = render(
       <DialogueLayout showArrowIcon={false} isAutoPlay={false}>text</DialogueLayout>
     )
     const hr = container.querySelector('[data-testid="dialogue-separator"]')
-    expect(hr).toBeNull()
+    expect(hr).not.toBeNull()
   })
 
   it('renders diamond indicator when showArrowIcon=true and not autoplay', () => {
