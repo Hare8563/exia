@@ -24,12 +24,11 @@ describe('Choice', () => {
     expect(screen.getByText("Goodbye!")).not.toBeNull()
   })
 
-  it('renders buttons with light background color', () => {
+  it('renders buttons with gradient background', () => {
     const { container } = render(<Choice choices={choices} onSelect={() => {}} />)
     const buttons = container.querySelectorAll('button')
     buttons.forEach(btn => {
-      // jsdom normalizes hex to rgb; #F2F3F5 == rgb(242, 243, 245)
-      expect(btn.style.background).toBe('rgb(242, 243, 245)')
+      expect(btn.style.background).toContain('linear-gradient')
     })
   })
 

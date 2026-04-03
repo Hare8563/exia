@@ -89,7 +89,7 @@
 [cm][MESSAGE_OFF]
 [ALL_OFF back_cg="black.png" out_number=0 time=1000][STOP_BGM bgm_flag=1]
 [wait time=1000 canskip=true]
-[FAID_IN_CG back_cg="cg_01.webp" time=1000]
+[FAID_IN_CG back_cg="bg_forest.png" time=1000]
 [resetwait]
 [cm][MESSAGE_ON]
 [CH_NAME_OFF]
@@ -100,10 +100,10 @@
 CGの上にキャラクターのセリフを表示することもできます。物語の臨場感が増しますね！[SYSTEM_MENU_ON]
 
 ;■CGシーン終了 → 通常シーンに戻る
-[FAID_CH_CG back_cg="bg_01.webp" time=1500]
+[FAID_CH_CG back_cg="bg_forest.png" time=1500]
 [PLAY_BGM bgm="b0001.mp3" bgm_flag=1]
 ;■立ち絵：再表示
-[CHARA_ON ch_c="alicia/default/neutral/sprite_neutral__00001_.png" ch_r="layra/default/neutral/sprite_neutral__00001_.png" time=1000 ch_count=5]
+[CHARA_ON ch_c="alicia_default_neutral_00001.png" ch_r="layra_default_neutral_00001.png" time=1000 ch_count=5]
 [cm][MESSAGE_ON]
 [CH_NAME_OFF]
 CGを終了して、通常のシーンに戻ります。[SYSTEM_MENU_ON]

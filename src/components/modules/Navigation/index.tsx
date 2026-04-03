@@ -137,7 +137,7 @@ export const Navigation: React.FC = () => {
     <>
       <nav
         className="absolute flex flex-row items-center"
-        style={{ top: 17, right: 8, gap: 8 }}
+        style={{ top: 17, right: 0, gap: 8, marginRight: 17 }}
       >
         <button
           aria-label="AUTO"

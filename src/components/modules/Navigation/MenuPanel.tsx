@@ -35,6 +35,8 @@ export const MenuPanel: React.FC<MenuPanelProps> = ({ onFullscreen, onLog, onSki
         padding: "8px 12px",
         gap: 8,
         zIndex: 100,
+        marginTop: 17,
+        marginRight: 5
       }}
     >
       {ICON_BUTTONS.map(({ label, Icon, prop }) => (

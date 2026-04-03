@@ -14,7 +14,8 @@ function LayerSprite({ layer, startOpacity, move }: { layer: KAGLayer; startOpac
   const matRef = useRef<THREE.MeshBasicMaterial>(null)
   const { viewport } = useThree()
 
-  const imageDir = typeof layer.id === 'number' && layer.id >= 3 ? 'image' : 'fgimage'
+  const imageDir = typeof layer.id === 'number' && layer.id >= 3 ? 'image' : 'fgimage';
+  console.log(layer.file!);
   const texture = useTexture(assetManager.resolve(layer.file!, `images/${imageDir}`))
 
   useEffect(() => {
