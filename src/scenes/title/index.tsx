@@ -4,6 +4,7 @@ import { BellIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from '@heroicons/r
 import { auth } from '@/firebase'
 import { useSceneStore } from '@/scene-manager/sceneStore'
 import { useThreeContentStore } from '@/states/threeContentStore'
+import { assetManager } from '@/utils/assetManager'
 import { TitleLayers } from './TitleLayers'
 
 const CIRCLE: React.CSSProperties = {
@@ -43,6 +44,16 @@ export default function TitleScene() {
     setSceneThreeComponent(TitleLayers)
     return () => setSceneThreeComponent(null)
   }, [setSceneThreeComponent])
+
+  const handleStart = () => {
+    const se = new Audio(assetManager.resolve('se_001.wav', 'sounds/se'))
+    se.play().catch(e => console.error("SE play failed", e))
+
+    // Transition after a short delay for SE impact
+    setTimeout(() => {
+      navigate('novel')
+    }, 300)
+  }
 
   const handleLogout = async () => {
     await signOut(auth)
@@ -87,7 +98,8 @@ export default function TitleScene() {
       }}>
         {/* TOUCH TO START */}
         <button
-          onClick={() => navigate('novel')}
+          onClick={handleStart}
+          className="animate-blink"
           style={{
             width: '100vw',
             height: 70,
@@ -97,7 +109,7 @@ export default function TitleScene() {
             fontWeight: 700,
             fontSize: 24,
             lineHeight: '36px',
-            color: '#8D8E8F',
+            color: '#ffffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

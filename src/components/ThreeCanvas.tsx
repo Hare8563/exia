@@ -11,7 +11,7 @@ export const ThreeCanvas: React.FC = () => {
         camera={{ position: [0, 0, 5], fov: 45 }}
         gl={{
           antialias: false,
-          alpha: false,
+          alpha: true,
           powerPreference: 'high-performance',
           preserveDrawingBuffer: false,
         }}
