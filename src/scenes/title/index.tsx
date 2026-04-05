@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { signOut } from 'firebase/auth'
 import { BellIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline'
 import { auth } from '@/firebase'
 import { useSceneStore } from '@/scene-manager/sceneStore'
+import { useThreeContentStore } from '@/states/threeContentStore'
+import { TitleLayers } from './TitleLayers'
 
 const CIRCLE: React.CSSProperties = {
   position: 'absolute',
@@ -34,7 +36,13 @@ const FOOTER_TEXT: React.CSSProperties = {
 
 export default function TitleScene() {
   const navigate = useSceneStore(s => s.navigate)
+  const setSceneThreeComponent = useThreeContentStore(s => s.setSceneThreeComponent)
   const uid = auth.currentUser?.uid ?? 'UID'
+
+  useEffect(() => {
+    setSceneThreeComponent(TitleLayers)
+    return () => setSceneThreeComponent(null)
+  }, [setSceneThreeComponent])
 
   const handleLogout = async () => {
     await signOut(auth)
@@ -42,14 +50,7 @@ export default function TitleScene() {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#FFFFFF' }}>
-
-      {/* Background image */}
-      <img
-        src="/images/bgimage/cover.png"
-        alt=""
-        style={{ position: 'absolute', width: 1331, height: 761, left: -55, top: -20, objectFit: 'fill' }}
-      />
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
 
       {/* Title logo */}
       <img
@@ -88,11 +89,10 @@ export default function TitleScene() {
         <button
           onClick={() => navigate('novel')}
           style={{
-            width: 1277,
+            width: '100vw',
             height: 70,
             flexShrink: 0,
             background: 'linear-gradient(90deg, rgba(141, 142, 143, 0) 0%, rgba(141, 142, 143, 0.7) 49.52%, rgba(141, 142, 143, 0) 100%)',
-            border: '1px solid #FFFFFF',
             fontFamily: "'Rounded Mplus 1c Bold', sans-serif",
             fontWeight: 700,
             fontSize: 24,
