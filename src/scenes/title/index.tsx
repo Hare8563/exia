@@ -27,7 +27,21 @@ export default function TitleScene() {
 
   useEffect(() => {
     setSceneThreeComponent(TitleLayers)
-    return () => setSceneThreeComponent(null)
+
+    // Play BGM on repeat
+    const bgm = new Audio(assetManager.resolve('b0000.mp3', 'sounds/bgm'))
+    bgm.loop = true
+    bgm.play().catch(e => console.warn("BGM autoplay blocked or failed:", e))
+
+    // Play Title Call Voice
+    const voice = new Audio(assetManager.resolve('title01.wav', 'sounds/voices'))
+    voice.play().catch(e => console.warn("Title voice call failed:", e))
+
+    return () => {
+      setSceneThreeComponent(null)
+      bgm.pause()
+      bgm.currentTime = 0
+    }
   }, [setSceneThreeComponent])
 
   const handleStart = (e: React.MouseEvent) => {
@@ -49,6 +63,11 @@ export default function TitleScene() {
   const handleLogout = async () => {
     await signOut(auth)
     navigate('sign-in')
+  }
+
+  const handleHover = () => {
+    const se = new Audio(assetManager.resolve('se_003.WAV', 'sounds/se'))
+    se.play().catch(e => console.warn("Hover SE failed", e))
   }
 
   const logoUrl = "/images/bgimage/title.png"
@@ -114,13 +133,20 @@ export default function TitleScene() {
 
       {/* Left sidebar UI */}
       <div style={{ position: 'absolute', left: 24, top: 24, display: 'flex', flexDirection: 'column', gap: 16, zIndex: 40 }}>
-        <button className="fantasy-button-gold w-14 h-14 rounded-xl flex items-center justify-center">
+        <button 
+          onMouseEnter={handleHover}
+          className="fantasy-button-gold w-14 h-14 rounded-xl flex items-center justify-center"
+        >
           <BellIcon className="w-8 h-8 text-amber-200" />
         </button>
-        <button className="fantasy-button-gold w-14 h-14 rounded-xl flex items-center justify-center">
+        <button 
+          onMouseEnter={handleHover}
+          className="fantasy-button-gold w-14 h-14 rounded-xl flex items-center justify-center"
+        >
           <Cog6ToothIcon className="w-8 h-8 text-amber-200" />
         </button>
         <button 
+          onMouseEnter={handleHover}
           onClick={() => { void handleLogout() }}
           className="fantasy-button-gold w-14 h-14 rounded-xl flex items-center justify-center mt-auto"
         >
@@ -141,7 +167,11 @@ export default function TitleScene() {
         zIndex: 30
       }}>
         {/* TOUCH TO START Container */}
-        <div className="relative group cursor-pointer" onClick={handleStart}>
+        <div 
+            className="relative group cursor-pointer" 
+            onClick={handleStart}
+            onMouseEnter={handleHover}
+        >
             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors rounded-full blur-xl -m-4" />
             <div
                 className="animate-glow-pulse px-24 py-4 relative"
