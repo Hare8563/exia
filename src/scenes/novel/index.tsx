@@ -13,8 +13,10 @@ import { ClickableMap } from '@/components/modules/ClickableMap'
 import { useKAGScenarioManager } from '@/components/modules/Message/hooks/useKAGScenarioManager'
 import { useNavigationStore } from '@/states/navigationStore'
 import { useSceneStore } from '@/scene-manager/sceneStore'
+import { useTransitionStore } from '@/states/transitionStore'
 
 export default function NovelScene() {
+  const [isTransitioning, setIsTransitioning] = React.useState(true)
   const { init, goToNextLine, isScenarioEnd, executeButtonExp } = useKAGScenarioManager()
   const flags = useKAGScenarioStore(s => s.flags)
   const resetScenario = useKAGScenarioStore(s => s.reset)
@@ -42,6 +44,16 @@ export default function NovelScene() {
         if (disposed) return
         console.info('[NovelScene] scenario loaded: scenarios/main')
         init(interp)
+        // Global and local fade out sequence
+        setTimeout(() => {
+          setIsTransitioning(false)
+          useTransitionStore.getState().setOpacity(0)
+        }, 500)
+
+        setTimeout(() => {
+            useTransitionStore.getState().setInProgress(false)
+            useTransitionStore.getState().setType('none')
+        }, 1000)
       })
       .catch(err => console.error('[NovelScene] scenario load failed:', err))
 
@@ -114,6 +126,10 @@ export default function NovelScene() {
         <Navigation />
         <Log />
       </div>
+      {/* Screen White-in Overlay */}
+      {isTransitioning && (
+        <div className="absolute inset-0 bg-white z-[100] pointer-events-none animate-fade-out" />
+      )}
     </div>
   )
 }
